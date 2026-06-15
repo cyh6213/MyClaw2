@@ -29,6 +29,7 @@ public class LlmClientFactory {
         return switch (normalized) {
             case "glm" -> new GLMClient(apiKey, model);
             case "deepseek" -> new DeepSeekClient(apiKey, model);
+            case "siliconflow" -> new SiliconFlowClient(apiKey, model, baseUrl);
             case "step" -> new StepClient(apiKey, model, baseUrl);
             case "kimi" -> new KimiClient(apiKey, model, baseUrl);
             case "freellmapi" -> new FreeLlmApiClient(apiKey, model, baseUrl);
@@ -43,7 +44,7 @@ public class LlmClientFactory {
             return client;
         }
 
-        for (String provider : new String[]{"glm", "deepseek", "step", "kimi", "freellmapi", "xfyun"}) {
+        for (String provider : new String[]{"glm", "deepseek", "siliconflow", "step", "kimi", "freellmapi", "xfyun"}) {
             client = create(provider, config);
             if (client != null) {
                 return client;
