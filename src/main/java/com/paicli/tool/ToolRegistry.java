@@ -107,10 +107,11 @@ public class ToolRegistry {
     private boolean customSnapshotService;
     private volatile String currentProvider = "";
     private volatile String currentModel = "";
-    private ScheduledTaskManager scheduledTaskManager;
+    /** 全局定时任务管理器，静态持有以便所有 ToolRegistry 实例都能访问 */
+    private static ScheduledTaskManager scheduledTaskManager;
 
-    public void setScheduledTaskManager(ScheduledTaskManager scheduler) {
-        this.scheduledTaskManager = scheduler;
+    public static void setScheduledTaskManagerGlobal(ScheduledTaskManager scheduler) {
+        scheduledTaskManager = scheduler;
     }
 
     public ToolRegistry() {

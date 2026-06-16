@@ -329,7 +329,7 @@ public class Main {
                 scheduledTaskManager = new ScheduledTaskManager(
                         Path.of(reactAgent.getToolRegistry().getProjectPath()));
                 scheduledTaskManager.start();
-                reactAgent.getToolRegistry().setScheduledTaskManager(scheduledTaskManager);
+                ToolRegistry.setScheduledTaskManagerGlobal(scheduledTaskManager);
                 Runtime.getRuntime().addShutdownHook(new Thread(scheduledTaskManager::close, "paicli-scheduler-shutdown"));
             } catch (Exception e) {
                 System.err.println("⚠️ 定时任务调度器启动失败: " + e.getMessage());
