@@ -2825,10 +2825,10 @@ public class Main {
                 "   " + AnsiStyle.section("██░░██") + "    " + AnsiStyle.subtle(state),
                 "   " + AnsiStyle.section("██████") + "    " + AnsiStyle.subtle(capabilities),
                 "",
-                "开始使用提示：",
+                "开始使用：",
                 "1. 输入 " + AnsiStyle.emphasis("/") + " 查看命令，支持 Tab 补全",
-                "2. 可以提问编程问题、编辑代码或运行命令",
-                "3. 使用 " + AnsiStyle.emphasis("@文件路径") + " 或 " + AnsiStyle.emphasis("@image:图片路径") + " 附加上下文"
+                "2. 直接跟我聊天——我会以当前身份回应你",
+                "3. 需要改身份、调功能时，输入 " + AnsiStyle.emphasis("/管理") + " 进入管理面板"
         ));
         if (info.note() != null && !info.note().isBlank()) {
             lines.add("");
