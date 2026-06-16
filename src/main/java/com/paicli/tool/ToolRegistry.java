@@ -776,21 +776,25 @@ public class ToolRegistry {
                     String type = args.get("type");
                     String time = args.get("time");
                     if (id == null || prompt == null || type == null || time == null) return "缺少必填参数。";
-                    if ("daily".equalsIgnoreCase(type)) {
-                        scheduledTaskManager.addDailyTask(id, prompt, time);
-                        return "✅ 每日任务已添加: " + id + "，每天 " + time + " 执行。";
-                    } else if ("once".equalsIgnoreCase(type)) {
-                        LocalDateTime scheduledAt = parseRelativeTime(time);
-                        if (scheduledAt == null) return "时间格式无法识别，请用 HH:mm 格式（如 14:51）或 'N分钟后'、'N小时后'。";
-                        scheduledTaskManager.addOneTimeTask(id, prompt, scheduledAt);
-                        return "✅ 一次性任务已添加: " + id + "，将在 " + scheduledAt + " 执行。";
+                    try {
+                        if ("daily".equalsIgnoreCase(type)) {
+                            scheduledTaskManager.addDailyTask(id, prompt, time);
+                            return "✅ 每日任务已添加: " + id + "，每天 " + time + " 执行。";
+                        } else if ("once".equalsIgnoreCase(type)) {
+                            LocalDateTime scheduledAt = parseRelativeTime(time);
+                            if (scheduledAt == null) return "时间格式无法识别，请用 HH:mm 格式（如 14:51）或 'N分钟后'、'N小时后'。";
+                            scheduledTaskManager.addOneTimeTask(id, prompt, scheduledAt);
+                            return "✅ 一次性任务已添加: " + id + "，将在 " + scheduledAt + " 执行。";
+                        }
+                        return "type 必须是 daily 或 once。";
+                    } catch (Exception e) {
+                        return "添加任务失败: " + e.getMessage();
                     }
-                    return "type 必须是 daily 或 once。";
                 }
         ));
         tools.put("remove_scheduled_task", new Tool(
                 "remove_scheduled_task",
-                "删除一个已存在的定时任务。",
+                "删除一个已存在的定时任务。系统任务（daily-worker）不可删除。",
                 createParameters(
                         new Param("id", "string", "要删除的任务 ID", true)
                 ),
@@ -798,6 +802,9 @@ public class ToolRegistry {
                     if (scheduledTaskManager == null) return "定时任务管理器未初始化。";
                     String id = args.get("id");
                     if (id == null) return "缺少任务 ID。";
+                    var tasks = scheduledTaskManager.listTasks();
+                    boolean isSystem = tasks.stream().anyMatch(t -> t.id().equals(id) && t.system());
+                    if (isSystem) return "❌ 系统任务不可删除。";
                     boolean removed = scheduledTaskManager.removeTask(id);
                     return removed ? "✅ 已删除定时任务: " + id : "未找到任务: " + id;
                 }

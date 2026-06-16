@@ -330,6 +330,26 @@ public class Main {
                         Path.of(reactAgent.getToolRegistry().getProjectPath()));
                 scheduledTaskManager.start();
                 ToolRegistry.setScheduledTaskManagerGlobal(scheduledTaskManager);
+                scheduledTaskManager.setSkillRegistry(skillRegistry);
+                scheduledTaskManager.setRenderer(renderer);
+                // 注册系统 Worker 任务（每天凌晨 3 点推进剧情）
+                boolean hasWorker = scheduledTaskManager.listTasks().stream()
+                        .anyMatch(t -> "daily-worker".equals(t.id()));
+                if (!hasWorker) {
+                    scheduledTaskManager.addDailyTask("daily-worker",
+                            "你是 Worker。先调 load_skill(\"daily-simulation\") 加载日常模拟 Skill，"
+                            + "然后读 soul.md 了解当前角色状态，查 timeline-life.md 看今天有没有事件，"
+                            + "没事件就按 Skill 规则编日常，有事件就推进事件。"
+                            + "写日志到 logs/ 目录。有重大事件时创建一次性定时任务 push 给用户。",
+                            "03:00");
+                }
+                // 定时任务触发时推送到 CLI
+                scheduledTaskManager.addListener((id, result, prompt) -> {
+                    ui.println("\n⏰ 定时任务 [" + id + "] 触发：");
+                    if (result != null && !result.isBlank()) {
+                        ui.println("  " + result.replace("\n", "\n  "));
+                    }
+                });
                 Runtime.getRuntime().addShutdownHook(new Thread(scheduledTaskManager::close, "paicli-scheduler-shutdown"));
             } catch (Exception e) {
                 System.err.println("⚠️ 定时任务调度器启动失败: " + e.getMessage());
@@ -723,6 +743,13 @@ public class Main {
                                         ui.println("  - " + t.id() + "：" + t.summary());
                                     }
                                 }
+                            }
+                        } else if (payload != null && payload.toLowerCase().startsWith("run ")) {
+                            String taskId = payload.substring(4).trim();
+                            if (scheduledTaskManager == null) {
+                                ui.println("定时任务管理器未启动。");
+                            } else {
+                                ui.println(scheduledTaskManager.runNow(taskId));
                             }
                         } else {
                             printMcpCommandResult(ui, TaskCommandFormatter.handle(taskManager, payload));
@@ -1603,6 +1630,8 @@ public class Main {
                 new SlashCommandHint("/task scheduled", "/task scheduled", "查看定时任务列表"),
                 new SlashCommandHint("/定时任务", "/定时任务", "查看定时任务列表"),
                 new SlashCommandHint("/任务列表", "/任务列表", "查看定时任务列表"),
+                new SlashCommandHint("/任务运行 ", "/任务运行 <id>", "手动触发定时任务立即执行"),
+                new SlashCommandHint("/task run ", "/task run <id>", "手动触发定时任务立即执行"),
                 new SlashCommandHint("/mcp", "/mcp", "查看 MCP server 状态"),
                 new SlashCommandHint("/mcp restart ", "/mcp restart <name>", "重启 MCP server"),
                 new SlashCommandHint("/mcp logs ", "/mcp logs <name>", "查看 MCP server 日志"),

@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.util.Optional;
 
 import com.paicli.runtime.task.ScheduledTaskManager;
+import com.paicli.tool.ToolRegistry;
 
 public final class WechatCommandMain {
     private WechatCommandMain() {
@@ -87,15 +88,26 @@ public final class WechatCommandMain {
         // 启动定时任务调度器
         String ws = account.workspace() == null || account.workspace().isBlank()
                 ? "." : account.workspace();
+        IlinkClient client = new IlinkClient();
         try {
             ScheduledTaskManager scheduler = new ScheduledTaskManager(Path.of(ws));
             scheduler.start();
+            ToolRegistry.setScheduledTaskManagerGlobal(scheduler);
+            // 定时任务触发时推送到微信
+            scheduler.addListener((id, result, prompt) -> {
+                try {
+                    String msg = "⏰ [" + id + "] " + result;
+                    client.sendText(account, account.boundUserId(), "", msg);
+                } catch (Exception e) {
+                    System.err.println("⚠️ 定时任务推送微信失败: " + e.getMessage());
+                }
+            });
             Runtime.getRuntime().addShutdownHook(new Thread(scheduler::close, "paicli-wechat-scheduler-shutdown"));
         } catch (Exception e) {
             System.err.println("⚠️ 定时任务调度器启动失败: " + e.getMessage());
         }
 
-        new WechatMessageLoop(new IlinkClient(), store, account).run();
+        new WechatMessageLoop(client, store, account).run();
         return 0;
     }
 

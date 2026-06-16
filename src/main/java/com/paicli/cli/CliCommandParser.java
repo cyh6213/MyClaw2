@@ -132,6 +132,14 @@ final class CliCommandParser {
             return new ParsedCommand(CommandType.TASK, "scheduled");
         }
 
+        if (trimmed.regionMatches(true, 0, "/任务运行 ", 0, 6)) {
+            return new ParsedCommand(CommandType.TASK, "run " + trimmed.substring(6).trim());
+        }
+
+        if (trimmed.regionMatches(true, 0, "/task run ", 0, 9)) {
+            return new ParsedCommand(CommandType.TASK, "run " + trimmed.substring(9).trim());
+        }
+
         if (trimmed.equalsIgnoreCase("/hitl on")) {
             return new ParsedCommand(CommandType.SWITCH_HITL, "on");
         }
