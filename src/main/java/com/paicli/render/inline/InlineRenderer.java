@@ -122,7 +122,7 @@ public final class InlineRenderer implements Renderer {
 
     @Override
     public String inputRightPrompt() {
-        return "message / @path / @image";
+        return "消息 / @文件路径 / @图片路径";
     }
 
     @Override

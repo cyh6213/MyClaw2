@@ -160,7 +160,7 @@ public final class BottomStatusBar implements AutoCloseable {
     }
 
     static String formatStatusLine(StatusInfo info, int cols) {
-        String mode = info.hitlEnabled() ? "HITL Ctrl+Y for YOLO" : "YOLO Ctrl+Y to enable HITL";
+        String mode = info.hitlEnabled() ? "HITL Ctrl+Y 关闭人工审批" : "YOLO Ctrl+Y 开启人工审批";
         String right = environmentSummary(info);
         if (right.isBlank()) {
             return fitToColumns(" " + mode, cols);
@@ -170,9 +170,9 @@ public final class BottomStatusBar implements AutoCloseable {
     }
 
     static String formatFooterLine(StatusInfo info, int cols) {
-        String model = info.model() == null || info.model().isBlank() ? "Auto Model" : info.model().trim();
-        String phase = info.phase() == null || info.phase().isBlank() ? "idle" : info.phase().trim();
-        StringBuilder sb = new StringBuilder(" Auto Model · ");
+        String model = info.model() == null || info.model().isBlank() ? "模型" : info.model().trim();
+        String phase = info.phase() == null || info.phase().isBlank() ? "空闲" : info.phase().trim();
+        StringBuilder sb = new StringBuilder(" 模型 · ");
         sb.append(model);
         appendField(sb, phase);
         appendField(sb, contextSegment(info));
@@ -223,7 +223,7 @@ public final class BottomStatusBar implements AutoCloseable {
     }
 
     static AttributedString formatStatusLineAttributed(StatusInfo info, int cols) {
-        String mode = info.hitlEnabled() ? "HITL Ctrl+Y for YOLO" : "YOLO Ctrl+Y to enable HITL";
+        String mode = info.hitlEnabled() ? "HITL Ctrl+Y 关闭人工审批" : "YOLO Ctrl+Y 开启人工审批";
         String right = environmentSummary(info);
         AttributedStringBuilder builder = new AttributedStringBuilder(Math.max(0, cols));
         builder.append(" ", BASE_STYLE);
@@ -238,14 +238,14 @@ public final class BottomStatusBar implements AutoCloseable {
     }
 
     static AttributedString formatFooterLineAttributed(StatusInfo info, int cols) {
-        String model = info.model() == null || info.model().isBlank() ? "Auto Model" : info.model().trim();
-        String phase = info.phase() == null || info.phase().isBlank() ? "idle" : info.phase().trim();
+        String model = info.model() == null || info.model().isBlank() ? "自动模型" : info.model().trim();
+        String phase = info.phase() == null || info.phase().isBlank() ? "空闲" : info.phase().trim();
         AttributedStringBuilder builder = new AttributedStringBuilder(Math.max(0, cols));
         builder.append(" ", BASE_STYLE);
-        builder.append("Auto Model", BRAND_STYLE);
+        builder.append("自动模型", BRAND_STYLE);
         builder.append(" · ", BASE_STYLE);
         builder.append(model, MODEL_STYLE);
-        appendStyledField(builder, phase, "idle".equalsIgnoreCase(phase) ? PHASE_IDLE_STYLE : PHASE_ACTIVE_STYLE);
+        appendStyledField(builder, phase, "空闲".equalsIgnoreCase(phase) ? PHASE_IDLE_STYLE : PHASE_ACTIVE_STYLE);
         appendContextField(builder, info);
         if (info.inputTokens() > 0 || info.outputTokens() > 0 || info.cachedInputTokens() > 0) {
             appendUsageField(builder, info);
@@ -339,7 +339,7 @@ public final class BottomStatusBar implements AutoCloseable {
             builder.append("░".repeat(gauge.empty()), CTX_EMPTY_STYLE);
         }
         builder.append(" ", BASE_STYLE);
-        builder.append(gauge.percent() + "%", contextPercentStyle(gauge.percent()));
+        builder.append(String.format("%.1f%%", gauge.percent()), contextPercentStyle(gauge.percent()));
         builder.append(" (" + formatTokens(gauge.total()) + "/" + formatTokens(gauge.window()) + ")", BASE_STYLE);
     }
 
@@ -356,7 +356,7 @@ public final class BottomStatusBar implements AutoCloseable {
         }
     }
 
-    private static AttributedStyle contextPercentStyle(int percent) {
+    private static AttributedStyle contextPercentStyle(double percent) {
         if (percent >= 90) {
             return style(AttributedStyle.DEFAULT.foreground(AttributedStyle.RED).bold());
         }
@@ -392,21 +392,21 @@ public final class BottomStatusBar implements AutoCloseable {
         ContextGauge gauge = contextGauge(info);
         String bar = "█".repeat(Math.max(0, gauge.filled()))
                 + "░".repeat(Math.max(0, gauge.empty()));
-        return "ctx " + bar + " " + gauge.percent() + "% ("
+        return "ctx " + bar + " " + String.format("%.1f%%", gauge.percent()) + " ("
                 + formatTokens(gauge.total()) + "/" + formatTokens(gauge.window()) + ")";
     }
 
     private static ContextGauge contextGauge(StatusInfo info) {
         long total = Math.max(0L, info.totalTokens());
         long window = Math.max(0L, info.contextWindow());
-        int percent = window <= 0L ? 0 : (int) Math.min(100L, Math.round(total * 100.0 / window));
+        double percent = window <= 0L ? 0 : Math.min(100.0, total * 100.0 / window);
         int filled = window <= 0L ? 0 : (int) Math.min(CONTEXT_BAR_WIDTH,
                 Math.round(total * CONTEXT_BAR_WIDTH * 1.0 / window));
         int empty = Math.max(0, CONTEXT_BAR_WIDTH - filled);
         return new ContextGauge(total, window, percent, filled, empty);
     }
 
-    private record ContextGauge(long total, long window, int percent, int filled, int empty) {
+    private record ContextGauge(long total, long window, double percent, int filled, int empty) {
     }
 
     private static String compactCwd() {

@@ -2820,16 +2820,15 @@ public class Main {
         String capabilities = "ReAct · Plan · MCP · Browser · Image · Tools · Memory · RAG";
         String state = mcp + " · " + skills + " · ReAct";
         List<String> lines = new ArrayList<>(List.of(
-                "   " + AnsiStyle.section("██████████") + "    " + AnsiStyle.emphasis("PaiCLI") + " " + AnsiStyle.section("π") + "  " + AnsiStyle.subtle("v" + VERSION),
-                "   " + AnsiStyle.section("  ██  ██") + "    " + AnsiStyle.subtle(ready),
-                "   " + AnsiStyle.section("  ██  ██") + "    " + AnsiStyle.subtle(state),
-                "   " + AnsiStyle.section("  ██  ██") + "    " + AnsiStyle.subtle(capabilities),
-                "   " + AnsiStyle.section("  ██  ██"),
+                "   " + AnsiStyle.section("██████") + "    " + AnsiStyle.emphasis("MyClaw") + " " + AnsiStyle.section("♦") + "  " + AnsiStyle.subtle("v" + VERSION),
+                "   " + AnsiStyle.section("██░░██") + "    " + AnsiStyle.subtle(ready),
+                "   " + AnsiStyle.section("██░░██") + "    " + AnsiStyle.subtle(state),
+                "   " + AnsiStyle.section("██████") + "    " + AnsiStyle.subtle(capabilities),
                 "",
-                "Tips for getting started:",
-                "1. Type " + AnsiStyle.emphasis("/") + " for commands and Tab completion",
-                "2. Ask coding questions, edit code or run commands",
-                "3. Attach context with " + AnsiStyle.emphasis("@path") + " or " + AnsiStyle.emphasis("@image:")
+                "开始使用提示：",
+                "1. 输入 " + AnsiStyle.emphasis("/") + " 查看命令，支持 Tab 补全",
+                "2. 可以提问编程问题、编辑代码或运行命令",
+                "3. 使用 " + AnsiStyle.emphasis("@文件路径") + " 或 " + AnsiStyle.emphasis("@image:图片路径") + " 附加上下文"
         ));
         if (info.note() != null && !info.note().isBlank()) {
             lines.add("");
