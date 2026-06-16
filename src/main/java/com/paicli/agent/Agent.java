@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -55,6 +56,7 @@ public class Agent {
     private Renderer renderer;
     private Supplier<Boolean> hitlEnabledSupplier = () -> false;
     private boolean returnFinalResponseWhenStreamed;
+    private PromptMode currentMode = PromptMode.CHAT;
     private final PromptAssembler promptAssembler = PromptAssembler.createDefault();
 
     public Agent(LlmClient llmClient) {
@@ -100,6 +102,18 @@ public class Agent {
 
     public void setReturnFinalResponseWhenStreamed(boolean returnFinalResponseWhenStreamed) {
         this.returnFinalResponseWhenStreamed = returnFinalResponseWhenStreamed;
+    }
+
+    public void setMode(PromptMode mode) {
+        this.currentMode = mode;
+        // 切换模式时立即重建 system prompt
+        ContextProfile profile = memoryManager.getContextProfile();
+        String memoryContext = memoryManager.buildContextForQuery("", profile.memoryContextTokens());
+        updateSystemPromptWithMemory(memoryContext);
+    }
+
+    public PromptMode getMode() {
+        return currentMode;
     }
 
     /**
@@ -311,12 +325,15 @@ public class Agent {
     }
 
     private String buildSystemPrompt(String memoryContext) {
-        return promptAssembler.assemble(PromptMode.AGENT, PromptContext.builder()
+        boolean enableTools = (llmClient != null && llmClient.supportsTools())
+                && currentMode != PromptMode.CHAT;
+        return promptAssembler.assemble(currentMode, PromptContext.builder()
                 .projectMemoryContext(buildProjectMemoryContext())
                 .memoryContext(memoryContext)
                 .externalContext(buildExternalContext())
+                .soulContext(buildSoulContext())
                 .skillIndex(buildSkillIndex())
-                .toolsEnabled(llmClient == null || llmClient.supportsTools())
+                .toolsEnabled(enableTools)
                 .build());
     }
 
@@ -399,6 +416,28 @@ public class Agent {
             return ProjectMemoryLoader.createDefault(Path.of(toolRegistry.getProjectPath())).loadForPrompt();
         } catch (Exception e) {
             log.warn("Failed to load PAI.md project memory", e);
+            return "";
+        }
+    }
+
+    /** 读取当前角色的灵魂文件，注入到 system prompt */
+    private String buildSoulContext() {
+        try {
+            String projectPath = toolRegistry.getProjectPath();
+            if (projectPath == null || projectPath.isBlank()) return "";
+            Path soulsDir = Path.of(projectPath).resolve(".paicli/souls");
+            if (!Files.isDirectory(soulsDir)) return "";
+            try (var dirs = Files.newDirectoryStream(soulsDir, Files::isDirectory)) {
+                for (Path dir : dirs) {
+                    Path soulFile = dir.resolve("soul.md");
+                    if (Files.isReadable(soulFile)) {
+                        return Files.readString(soulFile);
+                    }
+                }
+            }
+            return "";
+        } catch (Exception e) {
+            log.warn("Failed to load soul file", e);
             return "";
         }
     }

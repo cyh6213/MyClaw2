@@ -1,6 +1,8 @@
 package com.paicli.prompt;
 
 public enum PromptMode {
+    CHAT(""),
+    MANAGE("modes/agent.md"),
     AGENT("modes/agent.md"),
     PLAN("modes/plan.md"),
     PLANNER("modes/planner.md"),

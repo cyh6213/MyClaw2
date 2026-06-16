@@ -21,6 +21,30 @@ public class PromptAssembler {
         Objects.requireNonNull(mode, "mode");
         PromptContext ctx = context == null ? PromptContext.empty() : context;
 
+        if (mode == PromptMode.CHAT) {
+            return assembleChat(ctx);
+        }
+        return assembleManageOrAgent(mode, ctx);
+    }
+
+    private String assembleChat(PromptContext ctx) {
+        String base = repository.loadRequired("base.md");
+        base = stripPolicySections(base);
+        validateLanguageSection(base, "base.md");
+
+        StringBuilder prompt = new StringBuilder();
+        append(prompt, base);
+        append(prompt, dynamicSection("Soul", ctx.soulContext()));
+        append(prompt, runtimeContext());
+        append(prompt, dynamicSection("关于用户", ctx.memoryContext()));
+        append(prompt, repository.loadRequired("handoff-chat.md"));
+
+        String assembled = prompt.toString().trim();
+        validateLanguageSection(assembled, "assembled prompt");
+        return assembled;
+    }
+
+    private String assembleManageOrAgent(PromptMode mode, PromptContext ctx) {
         String base = repository.loadRequired("base.md");
         if (!ctx.toolsEnabled()) {
             base = stripToolSections(base);
@@ -36,11 +60,17 @@ public class PromptAssembler {
         append(prompt, applyVariables(repository.loadRequired(mode.resourcePath()), ctx));
         append(prompt, repository.loadRequired("approvals/" + approvalMode(ctx) + ".md"));
         append(prompt, runtimeContext());
-        append(prompt, dynamicSection("Project Context", ctx.projectMemoryContext(), ctx.memoryContext(),
-                ctx.externalContext()));
-        append(prompt, dynamicSection("Skills", ctx.skillIndex()));
-        append(prompt, repository.loadRequired("context/context-management.md"));
-        append(prompt, repository.loadRequired("handoff.md"));
+        append(prompt, dynamicSection("关于用户", ctx.memoryContext()));
+        append(prompt, dynamicSection("Soul", ctx.soulContext()));
+        if (mode == PromptMode.MANAGE) {
+            append(prompt, dynamicSection("Skills", ctx.skillIndex()));
+            append(prompt, repository.loadRequired("context/context-management.md"));
+            append(prompt, repository.loadRequired("handoff-manage.md"));
+        } else {
+            append(prompt, dynamicSection("Skills", ctx.skillIndex()));
+            append(prompt, repository.loadRequired("context/context-management.md"));
+            append(prompt, repository.loadRequired("handoff.md"));
+        }
 
         String assembled = prompt.toString().trim();
         validateLanguageSection(assembled, "assembled prompt");
@@ -95,6 +125,22 @@ public class PromptAssembler {
     private static String stripToolSections(String base) {
         String withoutTools = base.replaceFirst("(?s)\\n## Tools\\n.*?(?=\\n## Browser Policy\\n)", "\n");
         return withoutTools.replaceFirst("(?s)\\n## Tool Policy\\n.*?(?=\\n## Browser Policy\\n)", "\n");
+    }
+
+    /** 聊天模式下剥离所有策略/工具等不适用分段，只保留身份设定和语言要求 */
+    private static String stripPolicySections(String base) {
+        String result = base;
+        // 去掉 ## Tools 及其内容
+        result = result.replaceFirst("(?s)\\n## Tools\\n.*?(?=\\n## )", "\n");
+        // 去掉 ## Tool Policy
+        result = result.replaceFirst("(?s)\\n## Tool Policy\\n.*?(?=\\n## )", "\n");
+        // 去掉 ## Browser Policy
+        result = result.replaceFirst("(?s)\\n## Browser Policy\\n.*?(?=\\n## )", "\n");
+        // 去掉 ## Memory Policy
+        result = result.replaceFirst("(?s)\\n## Memory Policy\\n.*?(?=\\n## )", "\n");
+        // 去掉 ## Safety Policy
+        result = result.replaceFirst("(?s)\\n## Safety Policy\\n.*?(?=\\n)", "\n");
+        return result.trim();
     }
 
     private static String noToolsSection() {

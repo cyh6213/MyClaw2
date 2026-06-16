@@ -8,6 +8,7 @@ public record PromptContext(
         String projectMemoryContext,
         String memoryContext,
         String externalContext,
+        String soulContext,
         String skillIndex,
         boolean toolsEnabled,
         Map<String, String> variables
@@ -32,6 +33,7 @@ public record PromptContext(
         private String projectMemoryContext = "";
         private String memoryContext = "";
         private String externalContext = "";
+        private String soulContext = "";
         private String skillIndex = "";
         private boolean toolsEnabled = true;
         private final Map<String, String> variables = new LinkedHashMap<>();
@@ -58,6 +60,11 @@ public record PromptContext(
             return this;
         }
 
+        public Builder soulContext(String soulContext) {
+            this.soulContext = normalize(soulContext);
+            return this;
+        }
+
         public Builder skillIndex(String skillIndex) {
             this.skillIndex = normalize(skillIndex);
             return this;
@@ -77,7 +84,7 @@ public record PromptContext(
 
         public PromptContext build() {
             return new PromptContext(approvalMode, projectMemoryContext, memoryContext, externalContext,
-                    skillIndex, toolsEnabled, Map.copyOf(variables));
+                    soulContext, skillIndex, toolsEnabled, Map.copyOf(variables));
         }
 
         private static String normalize(String value) {

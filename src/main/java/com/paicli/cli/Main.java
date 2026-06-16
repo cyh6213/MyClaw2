@@ -32,6 +32,7 @@ import com.paicli.plan.ExecutionPlan;
 import com.paicli.rag.CodeIndex;
 import com.paicli.hitl.ApprovalPolicy;
 import com.paicli.policy.AuditLog;
+import com.paicli.prompt.PromptMode;
 import com.paicli.rag.CodeRetriever;
 import com.paicli.rag.CodeRelation;
 import com.paicli.rag.SearchResultFormatter;
@@ -558,6 +559,19 @@ public class Main {
                             continue;
                         }
                         input = command.payload();
+                    }
+                    case SWITCH_MANAGE -> {
+                        if (reactAgent.getMode() == PromptMode.MANAGE) {
+                            reactAgent.setMode(PromptMode.CHAT);
+                            ui.println("\n💬 已回到日常聊天模式，输入 /管理 可再次进入管理模式\n");
+                        } else {
+                            reactAgent.setMode(PromptMode.MANAGE);
+                            ui.println("\n🔧 已进入管理模式，现在可以：\n"
+                                    + "  - 修改角色身份 / 灵魂文件\n"
+                                    + "  - 执行文件读写操作\n"
+                                    + "  再次输入 /管理 或 /退出管理 回到聊天模式\n");
+                        }
+                        continue;
                     }
                     case SWITCH_MODEL -> {
                         String selection = command.payload();
@@ -1539,6 +1553,8 @@ public class Main {
                 new SlashCommandHint("/plan ", "/plan <任务内容>", "直接用计划模式执行这条任务"),
                 new SlashCommandHint("/team", "/team", "下一条任务使用 Multi-Agent 协作模式"),
                 new SlashCommandHint("/team ", "/team <任务内容>", "直接用多 Agent 协作执行这条任务"),
+                new SlashCommandHint("/管理", "/管理", "切换聊天/管理模式"),
+                new SlashCommandHint("/manage", "/manage", "切换聊天/管理模式"),
                 new SlashCommandHint("/hitl", "/hitl", "查看 HITL 状态"),
                 new SlashCommandHint("/hitl on", "/hitl on", "启用危险操作人工审批"),
                 new SlashCommandHint("/hitl off", "/hitl off", "关闭 HITL 审批"),
