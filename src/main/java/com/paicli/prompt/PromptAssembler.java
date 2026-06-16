@@ -1,6 +1,5 @@
 package com.paicli.prompt;
 
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
@@ -91,8 +90,10 @@ public class PromptAssembler {
 
     private static String runtimeContext() {
         ZoneId zone = ZoneId.systemDefault();
+        java.time.LocalDateTime now = java.time.LocalDateTime.now(zone);
         return "## Runtime Context\n\n"
-                + "- 当前日期: " + LocalDate.now(zone) + "\n"
+                + "- 当前日期: " + now.toLocalDate() + "\n"
+                + "- 当前时间: " + now.toLocalTime().withSecond(0).withNano(0) + "\n"
                 + "- 当前时区: " + zone;
     }
 
