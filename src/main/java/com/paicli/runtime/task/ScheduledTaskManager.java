@@ -27,7 +27,9 @@ import java.util.concurrent.TimeUnit;
  * 定时任务管理器。
  * <p>
  * 支持运行时添加/删除/查看定时任务，任务到点后创建独立 Agent（MANAGE 模式）执行 prompt。
- * 支持"每天早上8点"这种每日循环任务。
+ * 支持两种类型：
+ * - daily：每日循环任务，如"每天早上8点"（已存在）
+ * - once：一次性任务，到点执行后自动删除
  * 数据持久化到 SQLite: .paicli/scheduler/tasks.db
  */
 public class ScheduledTaskManager implements Closeable {
@@ -54,20 +56,18 @@ public class ScheduledTaskManager implements Closeable {
     public void start() {
         if (running) return;
         running = true;
-        scheduler.scheduleAtFixedRate(this::tick, 0, 30, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(this::tick, 0, 15, TimeUnit.SECONDS);
         log.info("ScheduledTaskManager started, db={}", dbPath());
     }
 
     // ========== Public CRUD API ==========
 
-    /** 添加一个每日定时任务 */
-    public ScheduledTask addTask(String id, String prompt, String time) {
-        // time 格式："HH:mm"，如 "08:00"、"07:30"
+    /** 添加一个每日循环任务，time 格式 "HH:mm" */
+    public ScheduledTask addDailyTask(String id, String prompt, String time) {
         String[] parts = time.split(":");
         int hour = Integer.parseInt(parts[0]);
         int minute = Integer.parseInt(parts[1]);
 
-        // 计算下一次执行时间
         LocalTime taskTime = LocalTime.of(hour, minute);
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime nextRun = LocalDateTime.of(now.toLocalDate(), taskTime);
@@ -76,8 +76,8 @@ public class ScheduledTaskManager implements Closeable {
         }
 
         try (PreparedStatement ps = connection.prepareStatement("""
-                INSERT OR REPLACE INTO scheduled_tasks (id, prompt, hour, minute, next_run, enabled)
-                VALUES (?, ?, ?, ?, ?, 1)
+                INSERT OR REPLACE INTO scheduled_tasks (id, prompt, task_type, hour, minute, next_run, enabled)
+                VALUES (?, ?, 'daily', ?, ?, ?, 1)
                 """)) {
             ps.setString(1, id);
             ps.setString(2, prompt);
@@ -86,10 +86,27 @@ public class ScheduledTaskManager implements Closeable {
             ps.setString(5, nextRun.toString());
             ps.executeUpdate();
         } catch (SQLException e) {
-            throw new IllegalStateException("添加定时任务失败: " + e.getMessage(), e);
+            throw new IllegalStateException("添加每日任务失败: " + e.getMessage(), e);
         }
-        log.info("Scheduled task added: id={}, time={}, next_run={}", id, time, nextRun);
-        return new ScheduledTask(id, prompt, hour, minute, nextRun.toString(), true);
+        log.info("Daily task added: id={}, time={}, next_run={}", id, time, nextRun);
+        return new ScheduledTask(id, prompt, "daily", hour, minute, nextRun.toString(), true);
+    }
+
+    /** 添加一次性任务，scheduledAt 为绝对时间 LocalDateTime */
+    public ScheduledTask addOneTimeTask(String id, String prompt, LocalDateTime scheduledAt) {
+        try (PreparedStatement ps = connection.prepareStatement("""
+                INSERT OR REPLACE INTO scheduled_tasks (id, prompt, task_type, hour, minute, next_run, enabled)
+                VALUES (?, ?, 'once', 0, 0, ?, 1)
+                """)) {
+            ps.setString(1, id);
+            ps.setString(2, prompt);
+            ps.setString(3, scheduledAt.toString());
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new IllegalStateException("添加一次性任务失败: " + e.getMessage(), e);
+        }
+        log.info("One-time task added: id={}, scheduled_at={}", id, scheduledAt);
+        return new ScheduledTask(id, prompt, "once", 0, 0, scheduledAt.toString(), true);
     }
 
     /** 删除定时任务 */
@@ -102,11 +119,11 @@ public class ScheduledTaskManager implements Closeable {
         }
     }
 
-    /** 列出所有定时任务 */
+    /** 列出所有启用的定时任务 */
     public List<ScheduledTask> listTasks() {
         List<ScheduledTask> tasks = new ArrayList<>();
         try (Statement stmt = connection.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT * FROM scheduled_tasks WHERE enabled = 1 ORDER BY hour, minute")) {
+             ResultSet rs = stmt.executeQuery("SELECT * FROM scheduled_tasks WHERE enabled = 1 ORDER BY next_run")) {
             while (rs.next()) {
                 tasks.add(fromRow(rs));
             }
@@ -127,21 +144,27 @@ public class ScheduledTaskManager implements Closeable {
         try {
             List<ScheduledTask> dueTasks = findDueTasks();
             for (ScheduledTask task : dueTasks) {
-                log.info("Scheduled task triggered: id={}, time={}:{}", task.id, task.hour, task.minute);
+                log.info("Scheduled task triggered: id={}, type={}", task.id, task.taskType);
                 executeTask(task);
-                // 更新下次执行时间
-                LocalDateTime nextRun = LocalDateTime.now()
-                        .withHour(task.hour).withMinute(task.minute).withSecond(0);
-                if (nextRun.isBefore(LocalDateTime.now()) || nextRun.isEqual(LocalDateTime.now())) {
-                    nextRun = nextRun.plusDays(1);
+                if ("once".equals(task.taskType)) {
+                    // 一次性任务：执行完就删除
+                    removeTask(task.id);
+                    log.info("One-time task done and removed: id={}", task.id);
+                } else {
+                    // 每日任务：推到明天
+                    LocalDateTime nextRun = LocalDateTime.now()
+                            .withHour(task.hour).withMinute(task.minute).withSecond(0);
+                    if (nextRun.isBefore(LocalDateTime.now()) || nextRun.isEqual(LocalDateTime.now())) {
+                        nextRun = nextRun.plusDays(1);
+                    }
+                    try (PreparedStatement ps = connection.prepareStatement(
+                            "UPDATE scheduled_tasks SET next_run = ? WHERE id = ?")) {
+                        ps.setString(1, nextRun.toString());
+                        ps.setString(2, task.id);
+                        ps.executeUpdate();
+                    }
+                    log.info("Daily task rescheduled: id={}, next_run={}", task.id, nextRun);
                 }
-                try (PreparedStatement ps = connection.prepareStatement(
-                        "UPDATE scheduled_tasks SET next_run = ? WHERE id = ?")) {
-                    ps.setString(1, nextRun.toString());
-                    ps.setString(2, task.id);
-                    ps.executeUpdate();
-                }
-                log.info("Scheduled task rescheduled: id={}, next_run={}", task.id, nextRun);
             }
         } catch (Exception e) {
             log.warn("Scheduler tick error", e);
@@ -190,8 +213,9 @@ public class ScheduledTaskManager implements Closeable {
                     CREATE TABLE IF NOT EXISTS scheduled_tasks (
                         id TEXT PRIMARY KEY,
                         prompt TEXT NOT NULL,
-                        hour INTEGER NOT NULL,
-                        minute INTEGER NOT NULL,
+                        task_type TEXT NOT NULL DEFAULT 'daily',
+                        hour INTEGER NOT NULL DEFAULT 0,
+                        minute INTEGER NOT NULL DEFAULT 0,
                         next_run TEXT NOT NULL,
                         enabled INTEGER DEFAULT 1
                     )
@@ -203,6 +227,7 @@ public class ScheduledTaskManager implements Closeable {
         return new ScheduledTask(
                 rs.getString("id"),
                 rs.getString("prompt"),
+                rs.getString("task_type"),
                 rs.getInt("hour"),
                 rs.getInt("minute"),
                 rs.getString("next_run"),
@@ -224,13 +249,24 @@ public class ScheduledTaskManager implements Closeable {
     public record ScheduledTask(
             String id,
             String prompt,
+            String taskType,
             int hour,
             int minute,
             String nextRun,
             boolean enabled
     ) {
         public String timeDisplay() {
+            if ("once".equals(taskType)) {
+                return "一次性·" + nextRun.substring(11, 16); // 显示 HH:mm
+            }
             return String.format("%02d:%02d", hour, minute);
+        }
+
+        public String summary() {
+            if ("once".equals(taskType)) {
+                return "一次性 · " + nextRun.replace("T", " ") + " · " + prompt;
+            }
+            return "每日 " + timeDisplay() + " · " + prompt;
         }
     }
 }

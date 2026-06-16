@@ -45,14 +45,15 @@ import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 /**
  * 工具注册表 - 管理所有可用工具
@@ -757,20 +758,33 @@ public class ToolRegistry {
     private void registerScheduledTaskTools() {
         tools.put("add_scheduled_task", new Tool(
                 "add_scheduled_task",
-                "添加一个每日定时任务，到点后 AI 会自动执行指定 prompt（如推进剧情、提醒事项等）。时间格式 HH:mm，例如 08:00。",
+                "添加定时任务。支持两种类型：\n"
+                + "- type=daily：每日循环，time 填 HH:mm，如 08:00\n"
+                + "- type=once：一次性任务，time 填 HH:mm（相对当前时间的时分差，如当前14:50、time=14:51 就是一分钟后），或填自然语言如 '1分钟后'、'5分钟后'、'30分钟后'、'1小时后'（工具会自动解析）\n"
+                + "到点后 AI 会自动执行 prompt。",
                 createParameters(
-                        new Param("id", "string", "任务唯一标识，如 daily-worker、buy-breakfast", true),
+                        new Param("id", "string", "任务唯一标识，如 daily-worker、drink-water", true),
                         new Param("prompt", "string", "到点时 AI 要执行的任务描述", true),
-                        new Param("time", "string", "每日执行时间，格式 HH:mm，例如 08:00", true)
+                        new Param("type", "string", "任务类型：daily（每日循环）或 once（一次性，执行后自动删除）", true),
+                        new Param("time", "string", "daily 类型填 HH:mm 如 08:00；once 类型填 HH:mm 或相对时间如 '1分钟后'、'5分钟后'", true)
                 ),
                 args -> {
-                    if (scheduledTaskManager == null) return "定时任务管理器未初始化，请先在 Main 中设置。";
+                    if (scheduledTaskManager == null) return "定时任务管理器未初始化。";
                     String id = args.get("id");
                     String prompt = args.get("prompt");
+                    String type = args.get("type");
                     String time = args.get("time");
-                    if (id == null || prompt == null || time == null) return "缺少必填参数。";
-                    scheduledTaskManager.addTask(id, prompt, time);
-                    return "✅ 定时任务已添加: " + id + "，每天 " + time + " 执行。";
+                    if (id == null || prompt == null || type == null || time == null) return "缺少必填参数。";
+                    if ("daily".equalsIgnoreCase(type)) {
+                        scheduledTaskManager.addDailyTask(id, prompt, time);
+                        return "✅ 每日任务已添加: " + id + "，每天 " + time + " 执行。";
+                    } else if ("once".equalsIgnoreCase(type)) {
+                        LocalDateTime scheduledAt = parseRelativeTime(time);
+                        if (scheduledAt == null) return "时间格式无法识别，请用 HH:mm 格式（如 14:51）或 'N分钟后'、'N小时后'。";
+                        scheduledTaskManager.addOneTimeTask(id, prompt, scheduledAt);
+                        return "✅ 一次性任务已添加: " + id + "，将在 " + scheduledAt + " 执行。";
+                    }
+                    return "type 必须是 daily 或 once。";
                 }
         ));
         tools.put("remove_scheduled_task", new Tool(
@@ -797,12 +811,40 @@ public class ToolRegistry {
                     if (tasks.isEmpty()) return "暂无定时任务。";
                     StringBuilder sb = new StringBuilder("当前定时任务：\n");
                     for (var t : tasks) {
-                        sb.append("  - ").append(t.id()).append("：每天 ").append(t.timeDisplay())
-                                .append("，下次执行 ").append(t.nextRun()).append("\n");
+                        sb.append("  - ").append(t.id()).append("：").append(t.summary()).append("\n");
                     }
                     return sb.toString();
                 }
         ));
+    }
+
+    /** 解析相对时间。支持格式：HH:mm、N分钟后、N小时后、N天 */
+    private static LocalDateTime parseRelativeTime(String time) {
+        if (time == null || time.isBlank()) return null;
+        String trimmed = time.trim();
+        LocalDateTime now = LocalDateTime.now();
+        // HH:mm 格式（如 14:51）→ 今天的 HH:mm
+        if (trimmed.matches("\\d{1,2}:\\d{2}")) {
+            String[] parts = trimmed.split(":");
+            int hour = Integer.parseInt(parts[0]);
+            int minute = Integer.parseInt(parts[1]);
+            LocalDateTime result = now.withHour(hour).withMinute(minute).withSecond(0);
+            if (result.isBefore(now) || result.isEqual(now)) {
+                return result.plusDays(1);
+            }
+            return result;
+        }
+        // N分钟后
+        Matcher m = Pattern.compile("(\\d+)\\s*分[钟]?[后]?").matcher(trimmed);
+        if (m.find()) {
+            return now.plusMinutes(Long.parseLong(m.group(1)));
+        }
+        // N小时后
+        m = Pattern.compile("(\\d+)\\s*小[时]?[后]?").matcher(trimmed);
+        if (m.find()) {
+            return now.plusHours(Long.parseLong(m.group(1)));
+        }
+        return null;
     }
 
     private static int parseInt(String value, int fallback) {
