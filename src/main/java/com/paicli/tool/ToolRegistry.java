@@ -20,6 +20,7 @@ import com.paicli.policy.CommandGuard;
 import com.paicli.policy.PathGuard;
 import com.paicli.policy.PolicyException;
 import com.paicli.runtime.CancellationContext;
+import com.paicli.runtime.task.ScheduledTaskManager;
 import com.paicli.snapshot.RestoreResult;
 import com.paicli.snapshot.SnapshotService;
 import com.paicli.skill.Skill;
@@ -79,6 +80,8 @@ public class ToolRegistry {
     private static final int MAX_WRITE_FILE_BYTES = 5 * 1024 * 1024;
     // 需要审计的内置工具（与 ApprovalPolicy 的 DANGEROUS_TOOLS 保持一致）；MCP 工具按前缀动态纳入审计。
     private static final Set<String> AUDIT_TOOLS = Set.of("write_file", "execute_command", "create_project", "revert_turn");
+    /** 在 CHAT 模式下也允许调用的安全工具 */
+    private static final Set<String> SAFE_IN_CHAT = Set.of("add_scheduled_task", "remove_scheduled_task", "list_scheduled_tasks");
     private final Map<String, Tool> tools = new ConcurrentHashMap<>();
     private final Map<String, McpRegisteredTool> mcpTools = new ConcurrentHashMap<>();
     private final long commandTimeoutSeconds;
@@ -103,6 +106,11 @@ public class ToolRegistry {
     private boolean customSnapshotService;
     private volatile String currentProvider = "";
     private volatile String currentModel = "";
+    private ScheduledTaskManager scheduledTaskManager;
+
+    public void setScheduledTaskManager(ScheduledTaskManager scheduler) {
+        this.scheduledTaskManager = scheduler;
+    }
 
     public ToolRegistry() {
         this(DEFAULT_COMMAND_TIMEOUT_SECONDS, DEFAULT_TOOL_BATCH_TIMEOUT_SECONDS);
@@ -125,6 +133,7 @@ public class ToolRegistry {
         registerMemoryTools();
         registerSkillTools();
         registerSnapshotTools();
+        registerScheduledTaskTools();
     }
 
     /**
@@ -745,6 +754,57 @@ public class ToolRegistry {
         ));
     }
 
+    private void registerScheduledTaskTools() {
+        tools.put("add_scheduled_task", new Tool(
+                "add_scheduled_task",
+                "添加一个每日定时任务，到点后 AI 会自动执行指定 prompt（如推进剧情、提醒事项等）。时间格式 HH:mm，例如 08:00。",
+                createParameters(
+                        new Param("id", "string", "任务唯一标识，如 daily-worker、buy-breakfast", true),
+                        new Param("prompt", "string", "到点时 AI 要执行的任务描述", true),
+                        new Param("time", "string", "每日执行时间，格式 HH:mm，例如 08:00", true)
+                ),
+                args -> {
+                    if (scheduledTaskManager == null) return "定时任务管理器未初始化，请先在 Main 中设置。";
+                    String id = args.get("id");
+                    String prompt = args.get("prompt");
+                    String time = args.get("time");
+                    if (id == null || prompt == null || time == null) return "缺少必填参数。";
+                    scheduledTaskManager.addTask(id, prompt, time);
+                    return "✅ 定时任务已添加: " + id + "，每天 " + time + " 执行。";
+                }
+        ));
+        tools.put("remove_scheduled_task", new Tool(
+                "remove_scheduled_task",
+                "删除一个已存在的定时任务。",
+                createParameters(
+                        new Param("id", "string", "要删除的任务 ID", true)
+                ),
+                args -> {
+                    if (scheduledTaskManager == null) return "定时任务管理器未初始化。";
+                    String id = args.get("id");
+                    if (id == null) return "缺少任务 ID。";
+                    boolean removed = scheduledTaskManager.removeTask(id);
+                    return removed ? "✅ 已删除定时任务: " + id : "未找到任务: " + id;
+                }
+        ));
+        tools.put("list_scheduled_tasks", new Tool(
+                "list_scheduled_tasks",
+                "列出所有已设置的定时任务及其状态。",
+                createParameters(),
+                args -> {
+                    if (scheduledTaskManager == null) return "定时任务管理器未初始化。";
+                    var tasks = scheduledTaskManager.listTasks();
+                    if (tasks.isEmpty()) return "暂无定时任务。";
+                    StringBuilder sb = new StringBuilder("当前定时任务：\n");
+                    for (var t : tasks) {
+                        sb.append("  - ").append(t.id()).append("：每天 ").append(t.timeDisplay())
+                                .append("，下次执行 ").append(t.nextRun()).append("\n");
+                    }
+                    return sb.toString();
+                }
+        ));
+    }
+
     private static int parseInt(String value, int fallback) {
         if (value == null || value.isBlank()) return fallback;
         try {
@@ -1025,8 +1085,16 @@ public class ToolRegistry {
      * 获取所有工具定义（用于LLM）
      */
     public List<com.paicli.llm.LlmClient.Tool> getToolDefinitions() {
-        return tools.values().stream()
-                .map(t -> new com.paicli.llm.LlmClient.Tool(t.name(), t.description(), t.parameters()))
+        return getToolDefinitions(false);
+    }
+
+    /**
+     * 获取工具定义，safeOnly=true 时只返回 CHAT 模式下也安全的工具
+     */
+    public List<com.paicli.llm.LlmClient.Tool> getToolDefinitions(boolean safeOnly) {
+        return tools.entrySet().stream()
+                .filter(e -> !safeOnly || SAFE_IN_CHAT.contains(e.getKey()))
+                .map(e -> new com.paicli.llm.LlmClient.Tool(e.getValue().name(), e.getValue().description(), e.getValue().parameters()))
                 .toList();
     }
 

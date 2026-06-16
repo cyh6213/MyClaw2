@@ -188,9 +188,14 @@ public class Agent {
             int iteration = budget.beginIteration();
 
             try {
-                List<LlmClient.Tool> toolDefinitions = llmClient.supportsTools()
-                        ? toolRegistry.getToolDefinitions()
-                        : null;
+                List<LlmClient.Tool> toolDefinitions;
+                if (currentMode == PromptMode.CHAT) {
+                    toolDefinitions = toolRegistry.getToolDefinitions(true);
+                } else if (llmClient.supportsTools()) {
+                    toolDefinitions = toolRegistry.getToolDefinitions();
+                } else {
+                    toolDefinitions = null;
+                }
                 logRequestContext("react iteration=" + iteration, toolDefinitions);
                 streamRenderer.beginThinking();
                 // 调用 LLM

@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
 
+import com.paicli.runtime.task.ScheduledTaskManager;
+
 public final class WechatCommandMain {
     private WechatCommandMain() {
     }
@@ -81,6 +83,18 @@ public final class WechatCommandMain {
         WechatAccount account = store.loadLatest()
                 .orElseThrow(() -> new IllegalStateException("未找到微信账号，请先执行 paicli wechat setup"));
         System.out.println("PaiCLI 微信通道启动中，账号: " + account.accountId());
+
+        // 启动定时任务调度器
+        String ws = account.workspace() == null || account.workspace().isBlank()
+                ? "." : account.workspace();
+        try {
+            ScheduledTaskManager scheduler = new ScheduledTaskManager(Path.of(ws));
+            scheduler.start();
+            Runtime.getRuntime().addShutdownHook(new Thread(scheduler::close, "paicli-wechat-scheduler-shutdown"));
+        } catch (Exception e) {
+            System.err.println("⚠️ 定时任务调度器启动失败: " + e.getMessage());
+        }
+
         new WechatMessageLoop(new IlinkClient(), store, account).run();
         return 0;
     }

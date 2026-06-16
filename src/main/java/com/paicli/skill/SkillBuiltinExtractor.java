@@ -30,6 +30,12 @@ public final class SkillBuiltinExtractor {
                     "references/site-patterns/x.com.md",
                     "references/site-patterns/xiaohongshu.com.md",
                     "references/site-patterns/zhuanlan.zhihu.com.md"
+            )),
+            new BuiltinSkillSpec("daily-simulation", List.of(
+                    "SKILL.md"
+            )),
+            new BuiltinSkillSpec("character-extraction", List.of(
+                    "SKILL.md"
             ))
     );
 

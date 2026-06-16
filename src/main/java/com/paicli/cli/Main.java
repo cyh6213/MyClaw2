@@ -41,6 +41,7 @@ import com.paicli.runtime.CancellationToken;
 import com.paicli.runtime.api.RuntimeApiServer;
 import com.paicli.runtime.api.RuntimeThreadStore;
 import com.paicli.runtime.task.DurableTaskManager;
+import com.paicli.runtime.task.ScheduledTaskManager;
 import com.paicli.runtime.task.TaskCommandFormatter;
 import com.paicli.snapshot.RestoreResult;
 import com.paicli.snapshot.SnapshotService;
@@ -323,6 +324,16 @@ public class Main {
             DurableTaskManager taskManager = openTaskManager(llmClientRef);
             taskManager.start();
             Runtime.getRuntime().addShutdownHook(new Thread(taskManager::close, "paicli-task-shutdown"));
+            ScheduledTaskManager scheduledTaskManager = null;
+            try {
+                scheduledTaskManager = new ScheduledTaskManager(
+                        Path.of(reactAgent.getToolRegistry().getProjectPath()));
+                scheduledTaskManager.start();
+                reactAgent.getToolRegistry().setScheduledTaskManager(scheduledTaskManager);
+                Runtime.getRuntime().addShutdownHook(new Thread(scheduledTaskManager::close, "paicli-scheduler-shutdown"));
+            } catch (Exception e) {
+                System.err.println("⚠️ 定时任务调度器启动失败: " + e.getMessage());
+            }
             WechatRuntimeController wechatRuntime = new WechatRuntimeController(renderer);
             Runtime.getRuntime().addShutdownHook(new Thread(wechatRuntime::stop, "paicli-wechat-shutdown"));
             renderer.updateStatus(statusInfo(reactAgent, mcpServerManager, skillRegistry, "idle"));
