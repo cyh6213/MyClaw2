@@ -221,6 +221,12 @@ public class ScheduledTaskManager implements Closeable {
                     )
                     """);
         }
+        // 兼容旧表（没有 task_type 列的旧版本）
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("ALTER TABLE scheduled_tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'daily'");
+        } catch (SQLException ignored) {
+            // 列已存在时忽略错误
+        }
     }
 
     private ScheduledTask fromRow(ResultSet rs) throws SQLException {

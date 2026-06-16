@@ -709,7 +709,24 @@ public class Main {
                         continue;
                     }
                     case TASK -> {
-                        printMcpCommandResult(ui, TaskCommandFormatter.handle(taskManager, command.payload()));
+                        String payload = command.payload();
+                        if (payload != null && payload.trim().equalsIgnoreCase("scheduled")) {
+                            if (scheduledTaskManager == null) {
+                                ui.println("定时任务管理器未启动。");
+                            } else {
+                                var tasks = scheduledTaskManager.listTasks();
+                                if (tasks.isEmpty()) {
+                                    ui.println("📭 暂无定时任务");
+                                } else {
+                                    ui.println("📋 定时任务列表：");
+                                    for (var t : tasks) {
+                                        ui.println("  - " + t.id() + "：" + t.summary());
+                                    }
+                                }
+                            }
+                        } else {
+                            printMcpCommandResult(ui, TaskCommandFormatter.handle(taskManager, payload));
+                        }
                         continue;
                     }
                     case SKILL_LIST -> {
@@ -1583,6 +1600,9 @@ public class Main {
                 new SlashCommandHint("/task add ", "/task add <任务内容>", "提交后台任务"),
                 new SlashCommandHint("/task cancel ", "/task cancel <task_id>", "取消后台任务"),
                 new SlashCommandHint("/task log ", "/task log <task_id>", "查看后台任务结果"),
+                new SlashCommandHint("/task scheduled", "/task scheduled", "查看定时任务列表"),
+                new SlashCommandHint("/定时任务", "/定时任务", "查看定时任务列表"),
+                new SlashCommandHint("/任务列表", "/任务列表", "查看定时任务列表"),
                 new SlashCommandHint("/mcp", "/mcp", "查看 MCP server 状态"),
                 new SlashCommandHint("/mcp restart ", "/mcp restart <name>", "重启 MCP server"),
                 new SlashCommandHint("/mcp logs ", "/mcp logs <name>", "查看 MCP server 日志"),

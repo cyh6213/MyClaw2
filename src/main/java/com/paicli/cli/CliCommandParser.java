@@ -128,6 +128,10 @@ final class CliCommandParser {
             return new ParsedCommand(CommandType.SWITCH_MANAGE, null);
         }
 
+        if (trimmed.equals("/定时任务") || trimmed.equals("/任务列表")) {
+            return new ParsedCommand(CommandType.TASK, "scheduled");
+        }
+
         if (trimmed.equalsIgnoreCase("/hitl on")) {
             return new ParsedCommand(CommandType.SWITCH_HITL, "on");
         }
