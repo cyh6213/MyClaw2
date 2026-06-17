@@ -36,6 +36,7 @@ public class PromptAssembler {
         append(prompt, dynamicSection("Soul", ctx.soulContext()));
         append(prompt, runtimeContext());
         append(prompt, dynamicSection("关于用户", ctx.memoryContext()));
+        append(prompt, dynamicSection("用户信息", ctx.projectMemoryContext()));
         append(prompt, repository.loadRequired("handoff-chat.md"));
 
         String assembled = prompt.toString().trim();
