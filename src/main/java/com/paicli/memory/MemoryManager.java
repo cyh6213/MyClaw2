@@ -192,7 +192,10 @@ public class MemoryManager {
         if (longTermMemory instanceof HindsightMemory hindsightMemory) {
             try {
                 List<MemoryEntry> recalled = hindsightMemory.getClient().recall(query, 10);
-                if (recalled.isEmpty()) return "";
+                if (recalled.isEmpty()) {
+                    log.debug("Hindsight recall returned 0 memories for query: {}", query);
+                    return "";
+                }
 
                 StringBuilder context = new StringBuilder();
                 context.append("## 相关长期记忆\n\n");
@@ -204,6 +207,8 @@ public class MemoryManager {
                     usedTokens += entry.getTokenCount();
                 }
                 context.append("\n");
+                log.info("Hindsight recall retrieved {} memories for query '{}', injected {} chars",
+                        recalled.size(), query, context.length());
                 return context.toString();
             } catch (Exception e) {
                 log.warn("Hindsight recall failed, fallback to local: {}", e.getMessage());
