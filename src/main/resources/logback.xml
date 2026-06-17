@@ -5,6 +5,13 @@
     <property name="LOG_MAX_FILE_SIZE" value="${paicli.log.maxFileSize:-10MB}"/>
     <property name="LOG_TOTAL_SIZE_CAP" value="${paicli.log.totalSizeCap:-100MB}"/>
 
+    <!-- 控制台输出 -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
     <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_DIR}/paicli.log</file>
         <encoder>
@@ -20,6 +27,7 @@
     </appender>
 
     <root level="${LOG_LEVEL}">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ROLLING_FILE"/>
     </root>
 </configuration>
