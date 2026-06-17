@@ -45,6 +45,9 @@ final class CliCommandParser {
         PROACTIVE_UNMUTE,
         PERSONA,
         LIFE_PLAN,
+        CHARACTER_CREATE,
+        CHARACTER_SWITCH,
+        CHARACTER_LIST,
         SKILL_LIST,
         SKILL_SHOW,
         SKILL_ON,
@@ -302,6 +305,18 @@ final class CliCommandParser {
 
         if (trimmed.equalsIgnoreCase("/人生计划") || trimmed.equalsIgnoreCase("/life")) {
             return new ParsedCommand(CommandType.LIFE_PLAN, null);
+        }
+
+        if (trimmed.regionMatches(true, 0, "/创建角色 ", 0, 5)) {
+            return new ParsedCommand(CommandType.CHARACTER_CREATE, trimmed.substring(5).trim());
+        }
+
+        if (trimmed.regionMatches(true, 0, "/切换角色 ", 0, 5)) {
+            return new ParsedCommand(CommandType.CHARACTER_SWITCH, trimmed.substring(5).trim());
+        }
+
+        if (trimmed.equalsIgnoreCase("/角色列表") || trimmed.equalsIgnoreCase("/characters")) {
+            return new ParsedCommand(CommandType.CHARACTER_LIST, null);
         }
 
         if (trimmed.equalsIgnoreCase("/skill") || trimmed.equalsIgnoreCase("/skill list")) {

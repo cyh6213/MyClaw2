@@ -832,6 +832,84 @@ public class Main {
                         }
                         continue;
                     }
+                    case CHARACTER_CREATE -> {
+                        if (lifePlanManager == null) {
+                            ui.println("人生计划管理器未启动。");
+                        } else {
+                            String payload = command.payload();
+                            ui.println("🎭 正在创建角色...");
+                            ui.println("提示：使用 /创建角色 <角色名> @小说文件路径");
+                            ui.println("当前参数：" + payload);
+                            if (payload != null && !payload.isEmpty()) {
+                                try {
+                                    String[] parts = payload.split("@", 2);
+                                    String characterName = parts[0].trim();
+                                    String filePath = parts.length > 1 ? parts[1].trim() : null;
+                                    
+                                    if (!characterName.isEmpty()) {
+                                        ui.println("角色名：" + characterName);
+                                        if (filePath != null && !filePath.isEmpty()) {
+                                            ui.println("小说文件：" + filePath);
+                                            ui.println("\n请稍候，正在从小说中提取角色性格...");
+                                            ui.println("（此操作将调用 AI 分析小说并生成角色设定）");
+                                            // 交给 AI 处理
+                                            String aiPrompt = String.format(
+                                                "请使用 persona-extraction skill 从小说文件 %s 中提取角色 %s 的性格特征。" +
+                                                "只提取性格，不要提取故事动线。生成 soul.md 和人生计划文件。",
+                                                filePath, characterName
+                                            );
+                                            reactAgent.run(aiPrompt);
+                                        } else {
+                                            ui.println("⚠️ 缺少小说文件路径，请使用：/创建角色 <角色名> @小说文件路径");
+                                        }
+                                    } else {
+                                        ui.println("⚠️ 角色名不能为空");
+                                    }
+                                } catch (Exception e) {
+                                    ui.println("⚠️ 创建角色失败：" + e.getMessage());
+                                }
+                            } else {
+                                ui.println("⚠️ 请提供角色名：/创建角色 <角色名>");
+                            }
+                        }
+                        continue;
+                    }
+                    case CHARACTER_SWITCH -> {
+                        if (lifePlanManager == null) {
+                            ui.println("人生计划管理器未启动。");
+                        } else {
+                            String characterName = command.payload();
+                            if (characterName != null && !characterName.isEmpty()) {
+                                if (lifePlanManager.switchCharacter(characterName)) {
+                                    reactAgent.setCurrentCharacterName(characterName);
+                                    ui.println("🎭 已切换到角色：" + characterName);
+                                } else {
+                                    ui.println("⚠️ 角色不存在：" + characterName);
+                                    ui.println("可用角色：" + lifePlanManager.listCharacters());
+                                }
+                            } else {
+                                ui.println("⚠️ 请提供角色名：/切换角色 <角色名>");
+                            }
+                        }
+                        continue;
+                    }
+                    case CHARACTER_LIST -> {
+                        if (lifePlanManager == null) {
+                            ui.println("人生计划管理器未启动。");
+                        } else {
+                            List<String> characters = lifePlanManager.listCharacters();
+                            ui.println("🎭 角色列表：");
+                            if (characters.isEmpty()) {
+                                ui.println("  - 暂无角色");
+                            } else {
+                                String current = lifePlanManager.getCurrentCharacterName();
+                                for (String name : characters) {
+                                    ui.println("  " + (name.equals(current) ? "⭐" : "○") + " " + name);
+                                }
+                            }
+                        }
+                        continue;
+                    }
                     case SKILL_LIST -> {
                         ui.println(SkillCommandHandler.list(skillRegistry));
                         continue;

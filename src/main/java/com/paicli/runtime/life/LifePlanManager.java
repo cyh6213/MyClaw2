@@ -33,6 +33,7 @@ public class LifePlanManager {
     private static final Logger log = LoggerFactory.getLogger(LifePlanManager.class);
 
     private final Path soulsDir;
+    private String currentCharacterName;
 
     public LifePlanManager(Path projectPath) {
         this.soulsDir = projectPath.toAbsolutePath().normalize().resolve(".paicli/souls");
@@ -41,12 +42,81 @@ public class LifePlanManager {
         } catch (IOException e) {
             log.warn("Failed to create souls directory", e);
         }
+        this.currentCharacterName = findFirstCharacter();
+    }
+
+    /**
+     * 获取当前角色名
+     */
+    public String getCurrentCharacterName() {
+        return currentCharacterName;
+    }
+
+    /**
+     * 切换角色
+     * @param characterName 角色名
+     * @return 是否切换成功
+     */
+    public boolean switchCharacter(String characterName) {
+        Path dir = soulsDir.resolve(characterName);
+        if (Files.isDirectory(dir) && Files.isReadable(dir.resolve("soul.md"))) {
+            this.currentCharacterName = characterName;
+            log.info("Switched to character: {}", characterName);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 获取所有角色列表
+     */
+    public List<String> listCharacters() {
+        List<String> names = new ArrayList<>();
+        try (var dirs = Files.newDirectoryStream(soulsDir, Files::isDirectory)) {
+            for (Path dir : dirs) {
+                if (Files.isReadable(dir.resolve("soul.md"))) {
+                    names.add(dir.getFileName().toString());
+                }
+            }
+        } catch (IOException e) {
+            log.warn("Failed to list characters", e);
+        }
+        return names;
+    }
+
+    /**
+     * 查找第一个有 soul.md 的角色
+     */
+    private String findFirstCharacter() {
+        try (var dirs = Files.newDirectoryStream(soulsDir, Files::isDirectory)) {
+            for (Path dir : dirs) {
+                if (Files.isReadable(dir.resolve("soul.md"))) {
+                    return dir.getFileName().toString();
+                }
+            }
+        } catch (IOException e) {
+            log.warn("Failed to find first character", e);
+        }
+        return null;
     }
 
     /**
      * 获取当前角色目录
      */
     public Path getCurrentSoulDir() {
+        if (currentCharacterName != null) {
+            Path dir = soulsDir.resolve(currentCharacterName);
+            if (Files.isDirectory(dir)) {
+                return dir;
+            }
+        }
+        return getFirstSoulDir();
+    }
+
+    /**
+     * 获取第一个角色目录（备用）
+     */
+    private Path getFirstSoulDir() {
         try {
             if (!Files.isDirectory(soulsDir)) return null;
             try (var dirs = Files.newDirectoryStream(soulsDir, Files::isDirectory)) {
@@ -57,17 +127,9 @@ public class LifePlanManager {
                 }
             }
         } catch (IOException e) {
-            log.warn("Failed to find current soul dir", e);
+            log.warn("Failed to find first soul dir", e);
         }
         return null;
-    }
-
-    /**
-     * 获取当前角色名
-     */
-    public String getCurrentCharacterName() {
-        Path dir = getCurrentSoulDir();
-        return dir != null ? dir.getFileName().toString() : "默认角色";
     }
 
     /**

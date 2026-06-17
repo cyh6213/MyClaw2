@@ -58,6 +58,11 @@ public class Agent {
     private boolean returnFinalResponseWhenStreamed;
     private PromptMode currentMode = PromptMode.CHAT;
     private final PromptAssembler promptAssembler = PromptAssembler.createDefault();
+    private String currentCharacterName;
+
+    public void setCurrentCharacterName(String name) {
+        this.currentCharacterName = name;
+    }
 
     public Agent(LlmClient llmClient) {
         this(llmClient, new ToolRegistry());
@@ -440,6 +445,17 @@ public class Agent {
             if (projectPath == null || projectPath.isBlank()) return "";
             Path soulsDir = Path.of(projectPath).resolve(".paicli/souls");
             if (!Files.isDirectory(soulsDir)) return "";
+
+            // 如果指定了角色名，优先读取该角色
+            if (currentCharacterName != null && !currentCharacterName.isBlank()) {
+                Path characterDir = soulsDir.resolve(currentCharacterName);
+                Path soulFile = characterDir.resolve("soul.md");
+                if (Files.isReadable(soulFile)) {
+                    return Files.readString(soulFile);
+                }
+            }
+
+            // 回退到第一个有 soul.md 的角色
             try (var dirs = Files.newDirectoryStream(soulsDir, Files::isDirectory)) {
                 for (Path dir : dirs) {
                     Path soulFile = dir.resolve("soul.md");
