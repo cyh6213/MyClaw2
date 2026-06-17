@@ -92,25 +92,30 @@ public class HindsightClient {
         String now = java.time.Instant.now().toString();
         String todayDoc = documentId != null ? documentId : "chat-" + java.time.LocalDate.now().toString();
 
-        List<Map<String, Object>> items = new ArrayList<>();
-        for (String content : List.of(userMessage, assistantMessage)) {
-            if (content == null || content.isBlank()) continue;
-            java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
-            item.put("content", content);
-            item.put("timestamp", now);
-            item.put("document_id", todayDoc);
-            item.put("update_mode", "append");
-            if (context != null && !context.isBlank()) {
-                item.put("context", context);
-            }
-            if (tags != null && !tags.isEmpty()) {
-                item.put("tags", tags);
-            }
-            items.add(item);
+        // 把用户说和 AI 回的合并为一条 content，避免同一批请求里 document_id 重复
+        String combined = "";
+        if (userMessage != null && !userMessage.isBlank()) {
+            combined = "用户说：" + userMessage;
         }
-        if (items.isEmpty()) return;
+        if (assistantMessage != null && !assistantMessage.isBlank()) {
+            if (!combined.isEmpty()) combined += "\n";
+            combined += "角色回答：" + assistantMessage;
+        }
+        if (combined.isEmpty()) return;
 
-        String json = mapper.writeValueAsString(Map.of("items", items));
+        java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
+        item.put("content", combined);
+        item.put("timestamp", now);
+        item.put("document_id", todayDoc);
+        item.put("update_mode", "append");
+        if (context != null && !context.isBlank()) {
+            item.put("context", context);
+        }
+        if (tags != null && !tags.isEmpty()) {
+            item.put("tags", tags);
+        }
+
+        String json = mapper.writeValueAsString(Map.of("items", List.of(item)));
 
         Request request = new Request.Builder()
                 .url(url)
