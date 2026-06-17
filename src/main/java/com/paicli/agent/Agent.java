@@ -6,6 +6,7 @@ import com.paicli.context.ContextProfile;
 import com.paicli.context.TokenUsageFormatter;
 import com.paicli.lsp.LspDiagnosticReport;
 import com.paicli.memory.ConversationHistoryCompactor;
+import com.paicli.memory.ConversationHistoryStore;
 import com.paicli.memory.ExplicitMemoryHints;
 import com.paicli.memory.MemoryManager;
 import com.paicli.prompt.PromptAssembler;
@@ -53,6 +54,7 @@ public class Agent {
     private final ToolRegistry toolRegistry;
     private final List<LlmClient.Message> conversationHistory;
     private final MemoryManager memoryManager;
+    private final ConversationHistoryStore historyStore;
     private final ConversationHistoryCompactor historyCompactor;
     private Supplier<String> externalContextSupplier = () -> "";
     private SkillRegistry skillRegistry;
@@ -87,7 +89,21 @@ public class Agent {
         this.toolRegistry.setCurrentModel(llmClient.getProviderName(), llmClient.getModelName());
         this.memoryManager.setProjectPath(this.toolRegistry.getProjectPath());
         this.toolRegistry.setScopedMemorySaver(this.memoryManager::storeFact);
+        this.historyStore = new ConversationHistoryStore(
+                Path.of(this.toolRegistry.getProjectPath()));
+        // 加载上次的对话历史
+        ConversationHistoryStore.LoadResult loadResult = this.historyStore.load();
         conversationHistory.add(LlmClient.Message.system(buildSystemPrompt("")));
+        if (!loadResult.messages().isEmpty()) {
+            conversationHistory.addAll(loadResult.messages());
+            log.info("Restored {} messages from last session", loadResult.messages().size());
+        }
+        // 如果间隔较长时间，注入时间感知提示
+        if (loadResult.timeGapMessage() != null) {
+            conversationHistory.add(LlmClient.Message.system(
+                    "【时间感知】" + loadResult.timeGapMessage()));
+            log.info("Injected time gap message: {}", loadResult.timeGapMessage());
+        }
     }
 
     public void setLlmClient(LlmClient llmClient) {
@@ -308,6 +324,15 @@ public class Agent {
         if (skillContextBuffer != null) {
             skillContextBuffer.clear();
         }
+        // 清空持久化的历史文件
+        historyStore.save(List.of());
+    }
+
+    /**
+     * 保存当前对话历史到磁盘
+     */
+    public void saveHistory() {
+        historyStore.save(conversationHistory);
     }
 
     /**

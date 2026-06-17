@@ -1075,6 +1075,8 @@ public class Main {
                     ui.println(response);
                     ui.println();
                 }
+                // 每次对话后自动保存历史
+                reactAgent.saveHistory();
             }
             ui.println("\n👋 再见!");
             wechatRuntime.stop();
