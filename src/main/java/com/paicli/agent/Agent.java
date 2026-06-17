@@ -260,6 +260,9 @@ public class Agent {
                 // 存入记忆
                 memoryManager.addAssistantMessage(response.content());
 
+                // 将整轮对话 retain 到 Hindsight（如果启用）
+                memoryManager.retainConversation(userInput, response.content());
+
                 // 记录 token 使用
                 memoryManager.recordTokenUsage(budget.totalInputTokens(), budget.totalOutputTokens(), budget.totalCachedInputTokens());
                 pushStatus(budget, startNanos, "idle");

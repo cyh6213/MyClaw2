@@ -52,10 +52,7 @@ public class HindsightClient {
 
     public void retain(List<Map<String, String>> messages) throws IOException {
         String url = baseUrl + "/v1/default/banks/" + bankId + "/memories";
-        Map<String, Object> body = Map.of(
-                "messages", messages,
-                "metadata", Map.of("source", "paicli")
-        );
+        Map<String, Object> body = Map.of("items", messages);
         String json = mapper.writeValueAsString(body);
 
         Request request = new Request.Builder()
@@ -98,21 +95,21 @@ public class HindsightClient {
             List<MemoryEntry> entries = new ArrayList<>();
             if (memories != null && memories.isArray()) {
                 for (JsonNode memory : memories) {
-                    String content = memory.has("content") ? memory.get("content").asText() : "";
-                    String role = memory.has("role") ? memory.get("role").asText() : "user";
+                    String text = memory.has("text") ? memory.get("text").asText() : "";
+                    String type = memory.has("type") ? memory.get("type").asText() : "experience";
                     String id = memory.has("id") ? memory.get("id").asText() : "";
 
-                    if (!content.isEmpty()) {
-                        MemoryEntry.MemoryType type = "assistant".equals(role)
+                    if (!text.isEmpty()) {
+                        MemoryEntry.MemoryType entryType = "observation".equals(type)
                                 ? MemoryEntry.MemoryType.SUMMARY
                                 : MemoryEntry.MemoryType.FACT;
 
                         entries.add(new MemoryEntry(
-                                "hindsight-" + (id.isEmpty() ? System.currentTimeMillis() : id),
-                                content,
-                                type,
-                                Map.of("source", "hindsight", "role", role),
-                                MemoryEntry.estimateTokens(content)
+                                "hindsight-" + (id.isEmpty() ? String.valueOf(System.currentTimeMillis()) : id),
+                                text,
+                                entryType,
+                                Map.of("source", "hindsight", "hindsight_type", type),
+                                MemoryEntry.estimateTokens(text)
                         ));
                     }
                 }
@@ -169,21 +166,21 @@ public class HindsightClient {
             List<MemoryEntry> entries = new ArrayList<>();
             if (memories != null && memories.isArray()) {
                 for (JsonNode memory : memories) {
-                    String content = memory.has("content") ? memory.get("content").asText() : "";
-                    String role = memory.has("role") ? memory.get("role").asText() : "user";
+                    String text = memory.has("text") ? memory.get("text").asText() : "";
+                    String type = memory.has("type") ? memory.get("type").asText() : "experience";
                     String id = memory.has("id") ? memory.get("id").asText() : "";
 
-                    if (!content.isEmpty()) {
-                        MemoryEntry.MemoryType type = "assistant".equals(role)
+                    if (!text.isEmpty()) {
+                        MemoryEntry.MemoryType entryType = "observation".equals(type)
                                 ? MemoryEntry.MemoryType.SUMMARY
                                 : MemoryEntry.MemoryType.FACT;
 
                         entries.add(new MemoryEntry(
-                                "hindsight-" + (id.isEmpty() ? System.currentTimeMillis() : id),
-                                content,
-                                type,
-                                Map.of("source", "hindsight", "role", role),
-                                MemoryEntry.estimateTokens(content)
+                                "hindsight-" + (id.isEmpty() ? String.valueOf(System.currentTimeMillis()) : id),
+                                text,
+                                entryType,
+                                Map.of("source", "hindsight", "hindsight_type", type),
+                                MemoryEntry.estimateTokens(text)
                         ));
                     }
                 }

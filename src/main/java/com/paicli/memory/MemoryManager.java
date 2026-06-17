@@ -105,6 +105,16 @@ public class MemoryManager {
         compressIfNeeded();
     }
 
+    /**
+     * 将整轮对话 retain 到 Hindsight（用户消息 + 助手回复一起）
+     * 在 Agent 每轮对话完成后调用
+     */
+    public void retainConversation(String userMessage, String assistantMessage) {
+        if (longTermMemory instanceof HindsightMemory hindsightMemory) {
+            hindsightMemory.storeConversation(userMessage, assistantMessage);
+        }
+    }
+
     // 工具结果在记忆中的最大长度（完整结果已在任务消息历史里，记忆只需保留摘要）
     private static final int MAX_TOOL_RESULT_CHARS = 500;
 
@@ -175,8 +185,30 @@ public class MemoryManager {
 
     /**
      * 构建用于 LLM 的记忆上下文
+     * 如果启用了 Hindsight，优先使用 Hindsight recall（语义检索）
+     * 否则回退到本地关键词匹配
      */
     public String buildContextForQuery(String query, int maxTokens) {
+        if (longTermMemory instanceof HindsightMemory hindsightMemory) {
+            try {
+                List<MemoryEntry> recalled = hindsightMemory.getClient().recall(query, 10);
+                if (recalled.isEmpty()) return "";
+
+                StringBuilder context = new StringBuilder();
+                context.append("## 相关长期记忆\n\n");
+                int usedTokens = 0;
+                for (MemoryEntry entry : recalled) {
+                    if (usedTokens + entry.getTokenCount() > maxTokens) break;
+                    context.append("- [").append(entry.getType()).append("] ")
+                            .append(entry.getContent()).append("\n");
+                    usedTokens += entry.getTokenCount();
+                }
+                context.append("\n");
+                return context.toString();
+            } catch (Exception e) {
+                log.warn("Hindsight recall failed, fallback to local: {}", e.getMessage());
+            }
+        }
         return retriever.buildContextForQuery(query, maxTokens, currentProject);
     }
 
