@@ -164,7 +164,7 @@ public class HindsightClient {
     }
 
     public List<MemoryEntry> recall(String query, int limit) throws IOException {
-        return recall(query, limit, 2048);
+        return recall(query, limit, 600);
     }
 
     public List<MemoryEntry> recall(String query, int limit, int maxTokens) throws IOException {
@@ -172,7 +172,7 @@ public class HindsightClient {
         Map<String, Object> body = new java.util.LinkedHashMap<>();
         body.put("query", query);
         body.put("budget", "low");
-        body.put("max_tokens", Math.max(256, maxTokens));
+        body.put("max_tokens", Math.max(256, Math.min(maxTokens, 800)));
         String json = mapper.writeValueAsString(body);
 
         Request request = new Request.Builder()
