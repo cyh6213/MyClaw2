@@ -38,7 +38,7 @@ public class HindsightMemory implements Memory {
                     userMessage, assistantMessage,
                     "chat",
                     List.of("conversation"),
-                    null  // 自动生成 document_id: chat-YYYY-MM-DD
+                    null
             );
             tokenCounter.addAndGet(MemoryEntry.estimateTokens(userMessage) + MemoryEntry.estimateTokens(assistantMessage));
             log.debug("Stored conversation to Hindsight");

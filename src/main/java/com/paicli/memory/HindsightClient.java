@@ -23,8 +23,8 @@ public class HindsightClient {
     public HindsightClient(String baseUrl, String bankId) {
         this.httpClient = new OkHttpClient.Builder()
                 .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-                .readTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
-                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                 .build();
         this.mapper = new ObjectMapper();
         this.baseUrl = baseUrl;
