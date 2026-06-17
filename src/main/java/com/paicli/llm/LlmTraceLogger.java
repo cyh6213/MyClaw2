@@ -15,7 +15,7 @@ public final class LlmTraceLogger {
             return;
         }
         String normalized = reasoningContent.replace("\r\n", "\n").replace('\r', '\n').trim();
-        log.info("LLM reasoning [{}] provider={} model={} chars={}\n{}",
+        log.debug("LLM reasoning [{}] provider={} model={} chars={}\n{}",
                 scope == null || scope.isBlank() ? "unknown" : scope,
                 llmClient == null ? "unknown" : llmClient.getProviderName(),
                 llmClient == null ? "unknown" : llmClient.getModelName(),

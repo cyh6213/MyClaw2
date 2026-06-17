@@ -3,58 +3,84 @@ package com.paicli.cli;
 final class CliCommandParser {
 
     enum CommandType {
-        NONE,
-        UNKNOWN_COMMAND,
-        INIT_PROJECT_MEMORY,
-        CANCEL,
-        EXIT,
-        CLEAR,
-        COMPACT,
-        HISTORY_CLEAR,
-        SWITCH_MODEL,
-        SWITCH_PLAN,
-        SWITCH_TEAM,
-        SWITCH_MANAGE,
-        SWITCH_HITL,
-        MEMORY_STATUS,
-        MEMORY_CLEAR,
-        MEMORY_LIST,
-        MEMORY_DELETE,
-        MEMORY_SEARCH,
-        MEMORY_SAVE,
-        INDEX_CODE,
-        SEARCH_CODE,
-        GRAPH_QUERY,
-        CONTEXT_STATUS,
-        POLICY_STATUS,
-        AUDIT_TAIL,
-        SNAPSHOT,
-        RESTORE_SNAPSHOT,
-        MCP_LIST,
-        MCP_RESTART,
-        MCP_LOGS,
-        MCP_DISABLE,
-        MCP_ENABLE,
-        MCP_RESOURCES,
-        MCP_PROMPTS,
-        BROWSER,
-        WECHAT,
-        TASK,
-        PROACTIVE_STATUS,
-        PROACTIVE_MUTE,
-        PROACTIVE_UNMUTE,
-        PERSONA,
-        LIFE_PLAN,
-        CHARACTER_CREATE,
-        CHARACTER_SWITCH,
-        CHARACTER_LIST,
-        SKILL_LIST,
-        SKILL_SHOW,
-        SKILL_ON,
-        SKILL_OFF,
-        SKILL_RELOAD,
-        CONFIG,
-        EXPORT
+        // ========== 基础控制 ==========
+        NONE,                   // 无命令
+        UNKNOWN_COMMAND,        // 未知命令
+        EXIT,                   // 退出程序
+        CANCEL,                 // 取消当前任务
+        CLEAR,                  // 清空对话历史
+        COMPACT,                // 压缩历史上下文
+        HISTORY_CLEAR,          // 清空输入历史
+
+        // ========== 模型/模式 ==========
+        SWITCH_MODEL,           // 切换模型
+        SWITCH_PLAN,            // 切换计划模式
+        SWITCH_TEAM,            // 切换团队模式
+        SWITCH_MANAGE,          // 切换管理模式
+        SWITCH_HITL,            // 人机交互模式开关
+
+        // ========== 记忆管理 ==========
+        MEMORY_STATUS,          // 记忆状态
+        MEMORY_CLEAR,           // 清空记忆
+        MEMORY_LIST,            // 列出记忆
+        MEMORY_DELETE,          // 删除记忆
+        MEMORY_SEARCH,          // 搜索记忆
+        MEMORY_SAVE,            // 保存记忆
+
+        // ========== 代码索引/搜索 ==========
+        INDEX_CODE,             // 索引代码
+        SEARCH_CODE,            // 搜索代码
+        GRAPH_QUERY,            // 图谱查询
+
+        // ========== 快照管理 ==========
+        SNAPSHOT,               // 快照列表
+        RESTORE_SNAPSHOT,       // 恢复快照
+
+        // ========== MCP管理 ==========
+        MCP_LIST,               // MCP列表
+        MCP_RESTART,            // 重启MCP
+        MCP_LOGS,               // 查看日志
+        MCP_DISABLE,            // 禁用MCP
+        MCP_ENABLE,             // 启用MCP
+        MCP_RESOURCES,          // MCP资源
+        MCP_PROMPTS,            // MCP提示
+
+        // ========== 外部连接 ==========
+        BROWSER,                // 浏览器控制
+        WECHAT,                 // 微信通道控制
+
+        // ========== 任务管理 ==========
+        TASK,                   // 任务管理
+
+        // ========== 主动对话（新增）==========
+        PROACTIVE_STATUS,       // 查看主动对话状态
+        PROACTIVE_MUTE,         // 静音N小时
+        PROACTIVE_UNMUTE,       // 恢复常态
+
+        // ========== 角色/人格（新增）==========
+        PERSONA,                // 查看当前角色设定
+        LIFE_PLAN,              // 查看人生计划
+        CHARACTER_CREATE,       // 创建角色
+        CHARACTER_SWITCH,       // 切换角色
+        CHARACTER_LIST,         // 角色列表
+
+        // ========== 内心独白（新增）==========
+        INNER_MONOLOGUE,        // 内心独白设置
+
+        // ========== Skill系统 ==========
+        SKILL_LIST,             // Skill列表
+        SKILL_SHOW,             // 查看Skill
+        SKILL_ON,               // 启用Skill
+        SKILL_OFF,              // 禁用Skill
+        SKILL_RELOAD,           // 重载Skill
+
+        // ========== 其他 ==========
+        INIT_PROJECT_MEMORY,    // 初始化项目记忆
+        CONTEXT_STATUS,         // 上下文状态
+        POLICY_STATUS,          // 策略状态
+        AUDIT_TAIL,             // 审计日志
+        CONFIG,                 // 配置管理
+        EXPORT                  // 导出数据
     }
 
     record ParsedCommand(CommandType type, String payload) {
@@ -317,6 +343,38 @@ final class CliCommandParser {
 
         if (trimmed.equalsIgnoreCase("/角色列表") || trimmed.equalsIgnoreCase("/characters")) {
             return new ParsedCommand(CommandType.CHARACTER_LIST, null);
+        }
+
+        // 内心独白命令
+        if (trimmed.equalsIgnoreCase("/内心独白") || trimmed.equalsIgnoreCase("/os")) {
+            return new ParsedCommand(CommandType.INNER_MONOLOGUE, null);
+        }
+
+        if (trimmed.equalsIgnoreCase("/内心独白 开启") || trimmed.equalsIgnoreCase("/os on")) {
+            return new ParsedCommand(CommandType.INNER_MONOLOGUE, "on");
+        }
+
+        if (trimmed.equalsIgnoreCase("/内心独白 关闭") || trimmed.equalsIgnoreCase("/os off")) {
+            return new ParsedCommand(CommandType.INNER_MONOLOGUE, "off");
+        }
+
+        if (trimmed.regionMatches(true, 0, "/内心独白 频率 ", 0, 7) || trimmed.regionMatches(true, 0, "/os freq ", 0, 9)) {
+            String payload = trimmed.startsWith("/内心独白") ? trimmed.substring(7).trim() : trimmed.substring(9).trim();
+            return new ParsedCommand(CommandType.INNER_MONOLOGUE, "freq " + payload);
+        }
+
+        if (trimmed.regionMatches(true, 0, "/内心独白 触发 添加 ", 0, 9) || trimmed.regionMatches(true, 0, "/os trigger add ", 0, 16)) {
+            String payload = trimmed.startsWith("/内心独白") ? trimmed.substring(9).trim() : trimmed.substring(16).trim();
+            return new ParsedCommand(CommandType.INNER_MONOLOGUE, "trigger add " + payload);
+        }
+
+        if (trimmed.regionMatches(true, 0, "/内心独白 触发 删除 ", 0, 9) || trimmed.regionMatches(true, 0, "/os trigger del ", 0, 16)) {
+            String payload = trimmed.startsWith("/内心独白") ? trimmed.substring(9).trim() : trimmed.substring(16).trim();
+            return new ParsedCommand(CommandType.INNER_MONOLOGUE, "trigger del " + payload);
+        }
+
+        if (trimmed.equalsIgnoreCase("/内心独白 触发 清空") || trimmed.equalsIgnoreCase("/os trigger clear")) {
+            return new ParsedCommand(CommandType.INNER_MONOLOGUE, "trigger clear");
         }
 
         if (trimmed.equalsIgnoreCase("/skill") || trimmed.equalsIgnoreCase("/skill list")) {

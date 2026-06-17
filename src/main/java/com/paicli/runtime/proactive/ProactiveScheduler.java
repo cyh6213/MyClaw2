@@ -370,7 +370,7 @@ public class ProactiveScheduler implements Closeable {
                 log.warn("Proactive listener failed", e);
             }
         }
-        log.info("Proactive message sent: {} ({})", message, source);
+        log.debug("Proactive message sent: {} ({})", message, source);
     }
 
     @Override

@@ -916,6 +916,10 @@ public class Main {
                         }
                         continue;
                     }
+                    case INNER_MONOLOGUE -> {
+                        handleInnerMonologueCommand(command.payload(), ui, reactAgent, lifePlanManager);
+                        continue;
+                    }
                     case SKILL_LIST -> {
                         ui.println(SkillCommandHandler.list(skillRegistry));
                         continue;
@@ -1754,92 +1758,51 @@ public class Main {
 
     static List<SlashCommandHint> slashCommandHints() {
         return List.of(
-                new SlashCommandHint("/model", "/model", "查看当前模型"),
-                new SlashCommandHint("/model glm-5.1", "/model glm-5.1", "切换到 GLM-5.1"),
-                new SlashCommandHint("/model glm-5v-turbo", "/model glm-5v-turbo", "切换到 GLM-5V-Turbo 多模态"),
-                new SlashCommandHint("/model deepseek", "/model deepseek", "切换到 DeepSeek（读取配置模型）"),
-                new SlashCommandHint("/model step", "/model step", "切换到 StepFun（读取配置模型）"),
-                new SlashCommandHint("/model kimi", "/model kimi", "切换到 Kimi（读取配置模型）"),
-                new SlashCommandHint("/model freellmapi", "/model freellmapi", "切换到本地 FreeLLMAPI（读取配置模型）"),
-                new SlashCommandHint("/model xfyun", "/model xfyun", "切换到讯飞星辰 MaaS（读取配置模型）"),
-                new SlashCommandHint("/config provider freellmapi ", "/config provider freellmapi <选项>", "配置本地 FreeLLMAPI provider"),
-                new SlashCommandHint("/config provider xfyun ", "/config provider xfyun <选项>", "配置讯飞星辰 MaaS provider"),
-                new SlashCommandHint("/plan", "/plan", "下一条任务使用 Plan-and-Execute 模式"),
-                new SlashCommandHint("/plan ", "/plan <任务内容>", "直接用计划模式执行这条任务"),
-                new SlashCommandHint("/team", "/team", "下一条任务使用 Multi-Agent 协作模式"),
-                new SlashCommandHint("/team ", "/team <任务内容>", "直接用多 Agent 协作执行这条任务"),
-                new SlashCommandHint("/管理", "/管理", "切换聊天/管理模式"),
-                new SlashCommandHint("/manage", "/manage", "切换聊天/管理模式"),
-                new SlashCommandHint("/hitl", "/hitl", "查看 HITL 状态"),
-                new SlashCommandHint("/hitl on", "/hitl on", "启用危险操作人工审批"),
-                new SlashCommandHint("/hitl off", "/hitl off", "关闭 HITL 审批"),
-                new SlashCommandHint("/browser", "/browser", "查看浏览器会话状态"),
-                new SlashCommandHint("/browser connect", "/browser connect", "复用已允许远程调试的登录态 Chrome"),
-                new SlashCommandHint("/browser connect ", "/browser connect <port>", "旧式 CDP 端口连接"),
-                new SlashCommandHint("/browser status", "/browser status", "查看浏览器会话状态"),
-                new SlashCommandHint("/browser tabs", "/browser tabs", "查看 shared 模式真实 Chrome tab"),
-                new SlashCommandHint("/browser disconnect", "/browser disconnect", "切回 isolated 浏览器模式"),
-                new SlashCommandHint("/wechat", "/wechat", "扫码绑定并启动微信 iLink 通道"),
-                new SlashCommandHint("/wechat setup", "/wechat setup", "重新扫码绑定并启动微信通道"),
-                new SlashCommandHint("/wechat status", "/wechat status", "查看微信通道状态"),
-                new SlashCommandHint("/wechat stop", "/wechat stop", "停止当前进程内微信通道"),
-                new SlashCommandHint("/task", "/task", "查看后台任务列表"),
-                new SlashCommandHint("/task add ", "/task add <任务内容>", "提交后台任务"),
-                new SlashCommandHint("/task cancel ", "/task cancel <task_id>", "取消后台任务"),
-                new SlashCommandHint("/task log ", "/task log <task_id>", "查看后台任务结果"),
-                new SlashCommandHint("/task scheduled", "/task scheduled", "查看定时任务列表"),
-                new SlashCommandHint("/定时任务", "/定时任务", "查看定时任务列表"),
-                new SlashCommandHint("/任务列表", "/任务列表", "查看定时任务列表"),
-                new SlashCommandHint("/任务运行 ", "/任务运行 <id>", "手动触发定时任务立即执行"),
-                new SlashCommandHint("/task run ", "/task run <id>", "手动触发定时任务立即执行"),
-                new SlashCommandHint("/主动状态", "/主动状态", "查看主动对话状态"),
-                new SlashCommandHint("/proactive", "/proactive", "查看主动对话状态"),
-                new SlashCommandHint("/静音 ", "/静音 <小时数>", "静音N小时（如 /静音 2）"),
-                new SlashCommandHint("/常态", "/常态", "恢复默认主动触发频率"),
+                // ========== 基础控制 ==========
+                new SlashCommandHint("/exit", "/exit", "退出程序"),
+                new SlashCommandHint("/clear", "/clear", "清空对话历史"),
+                new SlashCommandHint("/compact", "/compact", "压缩历史上下文"),
+
+                // ========== 角色/人格系统 ==========
                 new SlashCommandHint("/人格", "/人格", "查看当前角色设定"),
-                new SlashCommandHint("/persona", "/persona", "查看当前角色设定"),
                 new SlashCommandHint("/人生计划", "/人生计划", "查看人生计划"),
-                new SlashCommandHint("/life", "/life", "查看人生计划"),
-                new SlashCommandHint("/mcp", "/mcp", "查看 MCP server 状态"),
-                new SlashCommandHint("/mcp restart ", "/mcp restart <name>", "重启 MCP server"),
-                new SlashCommandHint("/mcp logs ", "/mcp logs <name>", "查看 MCP server 日志"),
-                new SlashCommandHint("/mcp disable ", "/mcp disable <name>", "禁用 MCP server"),
-                new SlashCommandHint("/mcp enable ", "/mcp enable <name>", "启用 MCP server"),
-                new SlashCommandHint("/mcp resources ", "/mcp resources <name>", "查看 MCP resources"),
-                new SlashCommandHint("/mcp prompts ", "/mcp prompts <name>", "查看 MCP prompts"),
-                new SlashCommandHint("/policy", "/policy", "查看安全策略状态"),
-                new SlashCommandHint("/config", "/config", "打开配置 palette（只读视图 + 切换提示）"),
-                new SlashCommandHint("/audit", "/audit", "查看今日最近 10 条危险工具审计"),
-                new SlashCommandHint("/audit ", "/audit [N]", "查看今日最近 N 条危险工具审计"),
-                new SlashCommandHint("/snapshot", "/snapshot", "查看最近 Side-Git 快照"),
-                new SlashCommandHint("/snapshot status", "/snapshot status", "查看 Side-Git 快照状态"),
-                new SlashCommandHint("/snapshot clean", "/snapshot clean", "清理当前项目 Side-Git 快照"),
-                new SlashCommandHint("/restore ", "/restore <N>", "恢复到最近第 N 个 pre-turn 快照"),
-                new SlashCommandHint("/index", "/index", "索引当前代码库"),
-                new SlashCommandHint("/index ", "/index [路径]", "索引指定路径代码库"),
-                new SlashCommandHint("/search ", "/search <查询>", "语义检索代码（RAG 辅助）"),
-                new SlashCommandHint("/graph ", "/graph <类名>", "查看代码关系图谱"),
-                new SlashCommandHint("/clear", "/clear", "清空当前对话历史"),
-                new SlashCommandHint("/compact", "/compact", "手动压缩当前对话历史"),
-                new SlashCommandHint("/init", "/init", "生成项目级记忆 PAI.md"),
-                new SlashCommandHint("/init --force", "/init --force", "重写项目级记忆 PAI.md"),
-                new SlashCommandHint("/history clear", "/history clear", "清空本机输入历史"),
-                new SlashCommandHint("/context", "/context", "查看上下文和记忆状态"),
+                new SlashCommandHint("/创建角色", "/创建角色 <名字>", "创建新角色"),
+                new SlashCommandHint("/切换角色", "/切换角色 <名字>", "切换到指定角色"),
+                new SlashCommandHint("/角色列表", "/角色列表", "查看所有角色"),
+
+                // ========== 主动对话 ==========
+                new SlashCommandHint("/主动状态", "/主动状态", "查看主动对话状态"),
+                new SlashCommandHint("/静音", "/静音 <小时数>", "静音N小时（如 /静音 2）"),
+                new SlashCommandHint("/常态", "/常态", "恢复默认主动触发频率"),
+
+                // ========== 定时任务 ==========
+                new SlashCommandHint("/定时任务", "/定时任务", "查看定时任务列表"),
+                new SlashCommandHint("/任务运行", "/任务运行 <id>", "手动触发定时任务"),
+
+                // ========== 内心独白 ==========
+                new SlashCommandHint("/内心独白", "/内心独白", "查看内心独白设置"),
+                new SlashCommandHint("/内心独白 开启", "/内心独白 开启", "开启内心独白"),
+                new SlashCommandHint("/内心独白 关闭", "/内心独白 关闭", "关闭内心独白"),
+                new SlashCommandHint("/内心独白 频率", "/内心独白 频率 高|中|低", "设置内心独白频率"),
+                new SlashCommandHint("/内心独白 触发 添加", "/内心独白 触发 添加 <情境>", "添加触发情境"),
+                new SlashCommandHint("/内心独白 触发 删除", "/内心独白 触发 删除 <情境>", "删除触发情境"),
+                new SlashCommandHint("/内心独白 触发 清空", "/内心独白 触发 清空", "清空所有触发情境"),
+
+                // ========== 微信通道 ==========
+                new SlashCommandHint("/wechat", "/wechat", "扫码绑定并启动微信通道"),
+                new SlashCommandHint("/wechat setup", "/wechat setup", "重新扫码绑定"),
+                new SlashCommandHint("/wechat status", "/wechat status", "查看微信通道状态"),
+                new SlashCommandHint("/wechat stop", "/wechat stop", "停止微信通道"),
+
+                // ========== 记忆管理 ==========
                 new SlashCommandHint("/memory", "/memory", "查看记忆状态"),
                 new SlashCommandHint("/memory list", "/memory list", "查看长期记忆列表"),
-                new SlashCommandHint("/memory search ", "/memory search <关键词>", "搜索当前项目可见长期记忆"),
-                new SlashCommandHint("/memory delete ", "/memory delete <id>", "删除单条长期记忆"),
-                new SlashCommandHint("/memory clear", "/memory clear", "清空长期记忆"),
-                new SlashCommandHint("/save ", "/save [--global] <事实内容>", "手动保存项目级或全局长期记忆"),
-                new SlashCommandHint("/skill", "/skill", "查看 skill 列表"),
-                new SlashCommandHint("/skill list", "/skill list", "查看 skill 列表"),
-                new SlashCommandHint("/skill show ", "/skill show <name>", "查看 SKILL.md 全文"),
-                new SlashCommandHint("/skill on ", "/skill on <name>", "启用 skill"),
-                new SlashCommandHint("/skill off ", "/skill off <name>", "禁用 skill"),
-                new SlashCommandHint("/skill reload", "/skill reload", "重新扫描 skill 目录"),
-                new SlashCommandHint("/export", "/export", "导出当前会话对话记录为 Markdown"),
-                new SlashCommandHint("/exit", "/exit", "退出 PaiCLI"),
-                new SlashCommandHint("/quit", "/quit", "退出 PaiCLI")
+                new SlashCommandHint("/memory search", "/memory search <关键词>", "搜索长期记忆"),
+                new SlashCommandHint("/save", "/save <内容>", "手动保存记忆"),
+
+                // ========== 其他常用 ==========
+                new SlashCommandHint("/model", "/model", "查看/切换模型"),
+                new SlashCommandHint("/config", "/config", "配置管理")
         );
     }
 
@@ -3167,6 +3130,127 @@ public class Main {
                                 boolean setDefault, String error) {
         static ProviderConfigUpdate error(String error) {
             return new ProviderConfigUpdate(null, null, null, null, null, false, error);
+        }
+    }
+
+    /**
+     * 处理内心独白命令
+     */
+    private static void handleInnerMonologueCommand(String payload, PrintStream ui, Agent reactAgent, LifePlanManager lifePlanManager) {
+        var config = reactAgent.getInnerMonologueConfig();
+
+        if (payload == null || payload.isEmpty()) {
+            // 显示当前设置
+            ui.println("💭 内心独白设置：");
+            ui.println("  - 状态：" + (config.isEnabled() ? "开启" : "关闭"));
+            ui.println("  - 频率：" + config.getFrequency().getLabel() + "（" + config.getFrequency().getDescription() + "）");
+            ui.println("  - 触发情境：" + String.join("、", config.getTriggers()));
+            ui.println("");
+            ui.println("命令：");
+            ui.println("  /内心独白 开启|关闭  - 开关内心独白");
+            ui.println("  /内心独白 频率 高|中|低  - 设置频率");
+            ui.println("  /内心独白 触发 添加 <情境>  - 添加触发情境");
+            ui.println("  /内心独白 触发 删除 <情境>  - 删除触发情境");
+            ui.println("  /内心独白 触发 清空  - 清空触发情境");
+            return;
+        }
+
+        if ("on".equals(payload)) {
+            config.setEnabled(true);
+            ui.println("✅ 已开启内心独白");
+            saveInnerMonologueConfig(config, reactAgent, lifePlanManager);
+            return;
+        }
+
+        if ("off".equals(payload)) {
+            config.setEnabled(false);
+            ui.println("✅ 已关闭内心独白");
+            saveInnerMonologueConfig(config, reactAgent, lifePlanManager);
+            return;
+        }
+
+        if (payload.startsWith("freq ")) {
+            String freq = payload.substring(5).trim();
+            var frequency = com.paicli.soul.InnerMonologueConfig.Frequency.fromLabel(freq);
+            config.setFrequency(frequency);
+            ui.println("✅ 已将内心独白频率设为：" + frequency.getLabel());
+            saveInnerMonologueConfig(config, reactAgent, lifePlanManager);
+            return;
+        }
+
+        if (payload.startsWith("trigger add ")) {
+            String trigger = payload.substring(12).trim();
+            config.addTrigger(trigger);
+            ui.println("✅ 已添加触发情境：" + trigger);
+            saveInnerMonologueConfig(config, reactAgent, lifePlanManager);
+            return;
+        }
+
+        if (payload.startsWith("trigger del ")) {
+            String trigger = payload.substring(12).trim();
+            config.removeTrigger(trigger);
+            ui.println("✅ 已删除触发情境：" + trigger);
+            saveInnerMonologueConfig(config, reactAgent, lifePlanManager);
+            return;
+        }
+
+        if ("trigger clear".equals(payload)) {
+            config.clearTriggers();
+            ui.println("✅ 已清空所有触发情境");
+            saveInnerMonologueConfig(config, reactAgent, lifePlanManager);
+            return;
+        }
+
+        ui.println("⚠️ 未知参数：" + payload);
+    }
+
+    /**
+     * 保存内心独白配置到 soul.md
+     */
+    private static void saveInnerMonologueConfig(com.paicli.soul.InnerMonologueConfig config, Agent reactAgent, LifePlanManager lifePlanManager) {
+        try {
+            String projectPath = reactAgent.getToolRegistry().getProjectPath();
+            if (projectPath == null || projectPath.isBlank()) return;
+
+            java.nio.file.Path soulsDir = java.nio.file.Path.of(projectPath).resolve(".paicli/souls");
+            if (!java.nio.file.Files.isDirectory(soulsDir)) return;
+
+            // 找到当前角色的 soul.md
+            String characterName = lifePlanManager != null ? lifePlanManager.getCurrentCharacterName() : null;
+            java.nio.file.Path soulFile = null;
+
+            if (characterName != null && !characterName.isBlank()) {
+                soulFile = soulsDir.resolve(characterName).resolve("soul.md");
+            }
+
+            if (soulFile == null || !java.nio.file.Files.isReadable(soulFile)) {
+                // 回退到第一个有 soul.md 的角色
+                try (var dirs = java.nio.file.Files.newDirectoryStream(soulsDir, java.nio.file.Files::isDirectory)) {
+                    for (java.nio.file.Path dir : dirs) {
+                        java.nio.file.Path file = dir.resolve("soul.md");
+                        if (java.nio.file.Files.isReadable(file)) {
+                            soulFile = file;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (soulFile == null || !java.nio.file.Files.isReadable(soulFile)) {
+                return;
+            }
+
+            String content = java.nio.file.Files.readString(soulFile);
+
+            // 移除旧的内心独白配置
+            String newContent = content.replaceAll("(?s)## 内心独白设置\\ninner_monologue:.*?(?=\\n## |$)", "").trim();
+
+            // 添加新的配置
+            newContent = newContent + "\n\n" + config.toMarkdown();
+
+            java.nio.file.Files.writeString(soulFile, newContent);
+        } catch (Exception e) {
+            System.err.println("保存内心独白配置失败: " + e.getMessage());
         }
     }
 

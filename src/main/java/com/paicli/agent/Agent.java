@@ -19,6 +19,7 @@ import com.paicli.runtime.CancellationContext;
 import com.paicli.skill.SkillContextBuffer;
 import com.paicli.skill.SkillIndexFormatter;
 import com.paicli.skill.SkillRegistry;
+import com.paicli.soul.InnerMonologueConfig;
 import com.paicli.util.AnsiStyle;
 import com.paicli.tool.ToolRegistry;
 import com.paicli.tool.ToolRegistry.ToolExecutionResult;
@@ -39,12 +40,15 @@ import java.util.HexFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Agent 核心类 - 实现 ReAct 循环
  */
 public class Agent {
     private static final Logger log = LoggerFactory.getLogger(Agent.class);
+    private static final Pattern OS_PATTERN = Pattern.compile("<os>(.*?)</os>", Pattern.DOTALL);
     private LlmClient llmClient;
     private final ToolRegistry toolRegistry;
     private final List<LlmClient.Message> conversationHistory;
@@ -59,6 +63,7 @@ public class Agent {
     private PromptMode currentMode = PromptMode.CHAT;
     private final PromptAssembler promptAssembler = PromptAssembler.createDefault();
     private String currentCharacterName;
+    private InnerMonologueConfig innerMonologueConfig = new InnerMonologueConfig();
 
     public void setCurrentCharacterName(String name) {
         this.currentCharacterName = name;
@@ -148,7 +153,7 @@ public class Agent {
      * 运行 Agent 循环
      */
     public String run(String userInput) {
-        log.info("ReAct run started: inputLength={}", userInput == null ? 0 : userInput.length());
+        log.debug("ReAct run started: inputLength={}", userInput == null ? 0 : userInput.length());
         pruneHistoricalImagePayloads();
         // 存入短期记忆
         memoryManager.addUserMessage(userInput);
@@ -175,7 +180,7 @@ public class Agent {
         // budget 仅在 token 用尽 / 检测到死循环 / 超出硬轮数时兜底。
         while (true) {
             if (CancellationContext.isCancelled()) {
-                log.info("ReAct run cancelled before iteration");
+                log.debug("ReAct run cancelled before iteration");
                 pushStatus(budget, startNanos, "idle");
                 return "⏹️ 已取消当前任务。";
             }
@@ -215,7 +220,7 @@ public class Agent {
                 );
                 LlmTraceLogger.logReasoning(log, "react iteration=" + iteration, llmClient, response.reasoningContent());
                 if (CancellationContext.isCancelled()) {
-                    log.info("ReAct run cancelled after LLM response");
+                    log.debug("ReAct run cancelled after LLM response");
                     streamRenderer.finish();
                     pushStatus(budget, startNanos, "idle");
                     return "⏹️ 已取消当前任务。";
@@ -266,7 +271,7 @@ public class Agent {
                 // 记录 token 使用
                 memoryManager.recordTokenUsage(budget.totalInputTokens(), budget.totalOutputTokens(), budget.totalCachedInputTokens());
                 pushStatus(budget, startNanos, "idle");
-                log.info("ReAct run finished: inputTokens={}, outputTokens={}, reasoningChars={}, answerChars={}",
+                log.debug("ReAct run finished: inputTokens={}, outputTokens={}, reasoningChars={}, answerChars={}",
                         budget.totalInputTokens(),
                         budget.totalOutputTokens(),
                         response.reasoningContent() == null ? 0 : response.reasoningContent().length(),
@@ -277,10 +282,11 @@ public class Agent {
 
                 if (streamRenderer.hasStreamedOutput()) {
                     streamRenderer.finish();
-                    return returnFinalResponseWhenStreamed ? (response.content() == null ? "" : response.content().trim()) : "";
+                    String content = response.content() == null ? "" : response.content().trim();
+                    return returnFinalResponseWhenStreamed ? parseInnerMonologue(content) : "";
                 }
                 streamRenderer.clearThinkingPanel();
-                return formatUserFacingResponse(reasoningTranscript.toString(), response.content());
+                return formatUserFacingResponse(reasoningTranscript.toString(), parseInnerMonologue(response.content()));
 
             } catch (IOException e) {
                 log.error("LLM call failed in ReAct loop", e);
@@ -453,29 +459,58 @@ public class Agent {
             Path soulsDir = Path.of(projectPath).resolve(".paicli/souls");
             if (!Files.isDirectory(soulsDir)) return "";
 
+            String soulContent = "";
+
             // 如果指定了角色名，优先读取该角色
             if (currentCharacterName != null && !currentCharacterName.isBlank()) {
                 Path characterDir = soulsDir.resolve(currentCharacterName);
                 Path soulFile = characterDir.resolve("soul.md");
                 if (Files.isReadable(soulFile)) {
-                    return Files.readString(soulFile);
+                    soulContent = Files.readString(soulFile);
                 }
             }
 
             // 回退到第一个有 soul.md 的角色
-            try (var dirs = Files.newDirectoryStream(soulsDir, Files::isDirectory)) {
-                for (Path dir : dirs) {
-                    Path soulFile = dir.resolve("soul.md");
-                    if (Files.isReadable(soulFile)) {
-                        return Files.readString(soulFile);
+            if (soulContent.isEmpty()) {
+                try (var dirs = Files.newDirectoryStream(soulsDir, Files::isDirectory)) {
+                    for (Path dir : dirs) {
+                        Path soulFile = dir.resolve("soul.md");
+                        if (Files.isReadable(soulFile)) {
+                            soulContent = Files.readString(soulFile);
+                            break;
+                        }
                     }
                 }
             }
-            return "";
+
+            // 解析内心独白配置并注入规则
+            if (!soulContent.isEmpty()) {
+                innerMonologueConfig = InnerMonologueConfig.parse(soulContent);
+                String osRule = innerMonologueConfig.toPromptRule();
+                if (!osRule.isEmpty()) {
+                    soulContent = soulContent + "\n\n" + osRule;
+                }
+            }
+
+            return soulContent;
         } catch (Exception e) {
             log.warn("Failed to load soul file", e);
             return "";
         }
+    }
+
+    /**
+     * 获取内心独白配置
+     */
+    public InnerMonologueConfig getInnerMonologueConfig() {
+        return innerMonologueConfig;
+    }
+
+    /**
+     * 设置内心独白配置
+     */
+    public void setInnerMonologueConfig(InnerMonologueConfig config) {
+        this.innerMonologueConfig = config;
     }
 
     /**
@@ -609,7 +644,7 @@ public class Agent {
             }
         }
         int estimatedTotal = systemTokens + userTokens + assistantTokens + toolMessageTokens + toolsSchemaTokens;
-        log.info("LLM request context [{}]: messages={}, images={}, systemTokens={}, userTokens={}, assistantTokens={}, toolMessageTokens={}, tools={}, toolsSchemaTokens={}, estimatedTotal={}",
+        log.debug("LLM request context [{}]: messages={}, images={}, systemTokens={}, userTokens={}, assistantTokens={}, toolMessageTokens={}, tools={}, toolsSchemaTokens={}, estimatedTotal={}",
                 scope, messages, imageParts, systemTokens, userTokens, assistantTokens, toolMessageTokens,
                 toolCount, toolsSchemaTokens, estimatedTotal);
         if (!imageDetails.isEmpty()) {
@@ -848,6 +883,43 @@ public class Agent {
             parts.addAll(result.imageParts());
             conversationHistory.add(LlmClient.Message.user(parts));
         }
+    }
+
+    /**
+     * 解析内心独白标签 <os>...</os>
+     * 将标签内容转换为 (OS: ...) 格式显示
+     */
+    private String parseInnerMonologue(String content) {
+        if (content == null || content.isEmpty()) {
+            return "";
+        }
+
+        if (!innerMonologueConfig.isEnabled()) {
+            // 未启用内心独白，移除标签
+            return OS_PATTERN.matcher(content).replaceAll("").trim();
+        }
+
+        StringBuilder result = new StringBuilder();
+        Matcher matcher = OS_PATTERN.matcher(content);
+        int lastEnd = 0;
+
+        while (matcher.find()) {
+            // 添加标签前的内容
+            result.append(content, lastEnd, matcher.start());
+
+            // 添加内心独白（灰色样式）
+            String os = matcher.group(1).trim();
+            if (!os.isEmpty()) {
+                result.append(AnsiStyle.subtle("(OS: " + os + ")")).append("\n");
+            }
+
+            lastEnd = matcher.end();
+        }
+
+        // 添加剩余内容
+        result.append(content.substring(lastEnd).trim());
+
+        return result.toString().trim();
     }
 
     private String formatUserFacingResponse(String reasoningContent, String answer) {

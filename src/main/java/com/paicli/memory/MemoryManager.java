@@ -205,11 +205,11 @@ public class MemoryManager {
      * 否则回退到本地关键词匹配
      */
     public String buildContextForQuery(String query, int maxTokens) {
-        log.info("buildContextForQuery called, isUsingHindsight={}, query='{}'", isUsingHindsight(), query);
+        log.debug("buildContextForQuery called, isUsingHindsight={}, query='{}'", isUsingHindsight(), query);
         if (longTermMemory instanceof HindsightMemory hindsightMemory) {
             try {
                 List<MemoryEntry> recalled = hindsightMemory.getClient().recall(query, 10, maxTokens);
-                log.info("Hindsight recall returned {} memories", recalled.size());
+                log.debug("Hindsight recall returned {} memories", recalled.size());
                 if (recalled.isEmpty()) {
                     return "";
                 }
@@ -224,7 +224,7 @@ public class MemoryManager {
                     usedTokens += entry.getTokenCount();
                 }
                 context.append("\n");
-                log.info("Hindsight recall retrieved {} memories for query '{}', injected {} chars",
+                log.debug("Hindsight recall retrieved {} memories for query '{}', injected {} chars",
                         recalled.size(), query, context.length());
                 return context.toString();
             } catch (Exception e) {
