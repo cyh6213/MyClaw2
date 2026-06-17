@@ -34,10 +34,12 @@ public class HindsightMemory implements Memory {
 
     public void storeConversation(String userMessage, String assistantMessage) {
         try {
-            client.retain(List.of(
-                    Map.of("role", "user", "content", userMessage),
-                    Map.of("role", "assistant", "content", assistantMessage)
-            ));
+            client.retainConversation(
+                    userMessage, assistantMessage,
+                    "chat",
+                    List.of("conversation"),
+                    null  // 自动生成 document_id: chat-YYYY-MM-DD
+            );
             tokenCounter.addAndGet(MemoryEntry.estimateTokens(userMessage) + MemoryEntry.estimateTokens(assistantMessage));
             log.debug("Stored conversation to Hindsight");
         } catch (IOException e) {

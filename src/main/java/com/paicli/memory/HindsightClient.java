@@ -47,13 +47,21 @@ public class HindsightClient {
     }
 
     public void retain(String message) throws IOException {
-        retain(List.of(Map.of("role", "user", "content", message)));
+        retain(message, null, null);
     }
 
-    public void retain(List<Map<String, String>> messages) throws IOException {
+    public void retain(String message, String context, List<String> tags) throws IOException {
         String url = baseUrl + "/v1/default/banks/" + bankId + "/memories";
-        Map<String, Object> body = Map.of("items", messages);
-        String json = mapper.writeValueAsString(body);
+        java.util.Map<String, Object> fields = new java.util.LinkedHashMap<>();
+        fields.put("content", message);
+        fields.put("timestamp", java.time.Instant.now().toString());
+        if (context != null && !context.isBlank()) {
+            fields.put("context", context);
+        }
+        if (tags != null && !tags.isEmpty()) {
+            fields.put("tags", tags);
+        }
+        String json = mapper.writeValueAsString(Map.of("items", List.of(fields)));
 
         Request request = new Request.Builder()
                 .url(url)
@@ -65,16 +73,101 @@ public class HindsightClient {
                 String errorBody = response.body() != null ? response.body().string() : "unknown";
                 throw new IOException("Hindsight retain failed: " + response.code() + " - " + errorBody);
             }
-            log.debug("Hindsight retain success");
+            log.debug("Hindsight retain success: tags={}, context={}", tags, context);
+        }
+    }
+
+    public void retain(List<Map<String, String>> messages) throws IOException {
+        retain(messages, null, null);
+    }
+
+    public void retainConversation(String userMessage, String assistantMessage) throws IOException {
+        retainConversation(userMessage, assistantMessage, null, null, null);
+    }
+
+    public void retainConversation(String userMessage, String assistantMessage,
+                                    String context, List<String> tags,
+                                    String documentId) throws IOException {
+        String url = baseUrl + "/v1/default/banks/" + bankId + "/memories";
+        String now = java.time.Instant.now().toString();
+        String todayDoc = documentId != null ? documentId : "chat-" + java.time.LocalDate.now().toString();
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (String content : List.of(userMessage, assistantMessage)) {
+            if (content == null || content.isBlank()) continue;
+            java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("content", content);
+            item.put("timestamp", now);
+            item.put("document_id", todayDoc);
+            item.put("update_mode", "append");
+            if (context != null && !context.isBlank()) {
+                item.put("context", context);
+            }
+            if (tags != null && !tags.isEmpty()) {
+                item.put("tags", tags);
+            }
+            items.add(item);
+        }
+        if (items.isEmpty()) return;
+
+        String json = mapper.writeValueAsString(Map.of("items", items));
+
+        Request request = new Request.Builder()
+                .url(url)
+                .post(RequestBody.create(json, JSON))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "unknown";
+                throw new IOException("Hindsight retain failed: " + response.code() + " - " + errorBody);
+            }
+            log.debug("Hindsight retain conversation: doc={}, tags={}, context={}", todayDoc, tags, context);
+        }
+    }
+
+    public void retain(List<Map<String, String>> messages, String context, List<String> tags) throws IOException {
+        String url = baseUrl + "/v1/default/banks/" + bankId + "/memories";
+        String now = java.time.Instant.now().toString();
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (Map<String, String> msg : messages) {
+            java.util.Map<String, Object> item = new java.util.LinkedHashMap<>();
+            item.put("content", msg.getOrDefault("content", ""));
+            item.put("timestamp", now);
+            if (context != null && !context.isBlank()) {
+                item.put("context", context);
+            }
+            if (tags != null && !tags.isEmpty()) {
+                item.put("tags", tags);
+            }
+            items.add(item);
+        }
+        String json = mapper.writeValueAsString(Map.of("items", items));
+
+        Request request = new Request.Builder()
+                .url(url)
+                .post(RequestBody.create(json, JSON))
+                .build();
+
+        try (Response response = httpClient.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                String errorBody = response.body() != null ? response.body().string() : "unknown";
+                throw new IOException("Hindsight retain failed: " + response.code() + " - " + errorBody);
+            }
+            log.debug("Hindsight retain success: {} items, tags={}", items.size(), tags);
         }
     }
 
     public List<MemoryEntry> recall(String query, int limit) throws IOException {
+        return recall(query, limit, 2048);
+    }
+
+    public List<MemoryEntry> recall(String query, int limit, int maxTokens) throws IOException {
         String url = baseUrl + "/v1/default/banks/" + bankId + "/memories/recall";
-        Map<String, Object> body = Map.of(
-                "query", query,
-                "limit", limit
-        );
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("query", query);
+        body.put("budget", "low");
+        body.put("max_tokens", Math.max(256, maxTokens));
         String json = mapper.writeValueAsString(body);
 
         Request request = new Request.Builder()

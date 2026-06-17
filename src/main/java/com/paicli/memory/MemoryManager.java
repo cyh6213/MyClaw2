@@ -192,7 +192,7 @@ public class MemoryManager {
         log.info("buildContextForQuery called, isUsingHindsight={}, query='{}'", isUsingHindsight(), query);
         if (longTermMemory instanceof HindsightMemory hindsightMemory) {
             try {
-                List<MemoryEntry> recalled = hindsightMemory.getClient().recall(query, 10);
+                List<MemoryEntry> recalled = hindsightMemory.getClient().recall(query, 10, maxTokens);
                 log.info("Hindsight recall returned {} memories", recalled.size());
                 if (recalled.isEmpty()) {
                     return "";
