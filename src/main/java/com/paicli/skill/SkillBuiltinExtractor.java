@@ -36,6 +36,9 @@ public final class SkillBuiltinExtractor {
             )),
             new BuiltinSkillSpec("character-extraction", List.of(
                     "SKILL.md"
+            )),
+            new BuiltinSkillSpec("scheduled-task", List.of(
+                    "SKILL.md"
             ))
     );
 

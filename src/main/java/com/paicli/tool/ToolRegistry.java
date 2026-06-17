@@ -760,14 +760,18 @@ public class ToolRegistry {
         tools.put("add_scheduled_task", new Tool(
                 "add_scheduled_task",
                 "添加定时任务。支持两种类型：\n"
-                + "- type=daily：每日循环，time 填 HH:mm，如 08:00\n"
-                + "- type=once：一次性任务，time 填 HH:mm（相对当前时间的时分差，如当前14:50、time=14:51 就是一分钟后），或填自然语言如 '1分钟后'、'5分钟后'、'30分钟后'、'1小时后'（工具会自动解析）\n"
+                + "- type=daily：每日循环，每天固定时间执行，time 填 HH:mm，如 08:00\n"
+                + "- type=once：一次性任务，只执行一次后自动删除，time 填相对时间如 '1分钟后'、'5分钟后'、'30分钟后'、'1小时后'\n"
+                + "重要：\n"
+                + "- 任务ID必须唯一，重复ID会报错\n"
+                + "- 一次性任务用once，每日重复用daily\n"
+                + "- 不要一次性创建多个相同ID的任务\n"
                 + "到点后 AI 会自动执行 prompt。",
                 createParameters(
-                        new Param("id", "string", "任务唯一标识，如 daily-worker、drink-water", true),
+                        new Param("id", "string", "任务唯一标识，如 daily-worker、drink-water-1（注意：ID必须唯一）", true),
                         new Param("prompt", "string", "到点时 AI 要执行的任务描述", true),
                         new Param("type", "string", "任务类型：daily（每日循环）或 once（一次性，执行后自动删除）", true),
-                        new Param("time", "string", "daily 类型填 HH:mm 如 08:00；once 类型填 HH:mm 或相对时间如 '1分钟后'、'5分钟后'", true)
+                        new Param("time", "string", "daily 类型填 HH:mm 如 08:00；once 类型填相对时间如 '1分钟后'、'5分钟后'", true)
                 ),
                 args -> {
                     if (scheduledTaskManager == null) return "定时任务管理器未初始化。";

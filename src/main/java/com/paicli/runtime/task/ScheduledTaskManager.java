@@ -40,6 +40,7 @@ public class ScheduledTaskManager implements Closeable {
     private final Path tasksDir;
     private final ScheduledExecutorService scheduler;
     private final List<TaskResultListener> listeners = new CopyOnWriteArrayList<>();
+    private final Path projectPath;
     private SkillRegistry skillRegistry;
     private Renderer renderer;
     private volatile boolean running;
@@ -62,7 +63,8 @@ public class ScheduledTaskManager implements Closeable {
     }
 
     public ScheduledTaskManager(Path projectPath) throws IOException {
-        this.tasksDir = projectPath.toAbsolutePath().normalize().resolve(".paicli/tasks");
+        this.projectPath = projectPath.toAbsolutePath().normalize();
+        this.tasksDir = this.projectPath.resolve(".paicli/tasks");
         Files.createDirectories(tasksDir);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "paicli-scheduler");
@@ -82,6 +84,10 @@ public class ScheduledTaskManager implements Closeable {
 
     /** 添加每日循环任务，time 格式 "HH:mm" */
     public Task addDailyTask(String id, String prompt, String time) throws IOException {
+        // 检查任务ID是否已存在
+        if (Files.exists(tasksDir.resolve(id + ".task"))) {
+            throw new IOException("任务ID已存在: " + id);
+        }
         String[] parts = time.split(":");
         int hour = Integer.parseInt(parts[0]);
         int minute = Integer.parseInt(parts[1]);
@@ -98,6 +104,10 @@ public class ScheduledTaskManager implements Closeable {
 
     /** 添加一次性任务 */
     public Task addOneTimeTask(String id, String prompt, LocalDateTime scheduledAt) throws IOException {
+        // 检查任务ID是否已存在
+        if (Files.exists(tasksDir.resolve(id + ".task"))) {
+            throw new IOException("任务ID已存在: " + id);
+        }
         Task task = new Task(id, "once", prompt, 0, 0, scheduledAt, false);
         writeTask(task);
         log.info("One-time task added: id={}, scheduled_at={}", id, scheduledAt);
@@ -176,35 +186,37 @@ public class ScheduledTaskManager implements Closeable {
 
     private void executeTask(Task task) {
         String result = "";
-        try {
-            PaiCliConfig config = PaiCliConfig.load();
-            LlmClient client = LlmClientFactory.createFromConfig(config);
-            if (client == null) {
-                log.warn("Task skipped (no LLM client): id={}", task.id);
-                return;
+        if (task.system()) {
+            // 系统任务（如 daily-worker）：调 LLM 执行（读写文件、编日常）
+            try {
+                PaiCliConfig config = PaiCliConfig.load();
+                LlmClient client = LlmClientFactory.createFromConfig(config);
+                if (client != null) {
+                    ToolRegistry registry = new ToolRegistry();
+                    registry.setProjectPath(projectPath.toString());
+                    if (skillRegistry != null) {
+                        registry.setSkillRegistry(skillRegistry);
+                        registry.setSkillContextBuffer(new SkillContextBuffer());
+                    }
+                    Agent agent = new Agent(client, registry);
+                    agent.setRenderer(renderer != null ? renderer : new com.paicli.render.PlainRenderer());
+                    agent.setMode(PromptMode.MANAGE);
+                    agent.setReturnFinalResponseWhenStreamed(true);
+                    if (skillRegistry != null) {
+                        agent.setSkillRegistry(skillRegistry);
+                        agent.setSkillContextBuffer(new SkillContextBuffer());
+                    }
+                    String context = "当前时间 " + LocalDateTime.now() + "。" + task.prompt;
+                    result = agent.run(context);
+                    log.info("System task result: id={}, length={}", task.id, result == null ? 0 : result.length());
+                }
+            } catch (Exception e) {
+                log.warn("System task execution failed: id=" + task.id, e);
+                result = "执行失败: " + e.getMessage();
             }
-            ToolRegistry registry = new ToolRegistry();
-            registry.setProjectPath(tasksDir.getParent().getParent().toString());
-            if (skillRegistry != null) {
-                registry.setSkillRegistry(skillRegistry);
-                registry.setSkillContextBuffer(new SkillContextBuffer());
-            }
-
-            Agent agent = new Agent(client, registry);
-            agent.setRenderer(renderer != null ? renderer : new com.paicli.render.PlainRenderer());
-            agent.setMode(PromptMode.MANAGE);
-            agent.setReturnFinalResponseWhenStreamed(true);
-            if (skillRegistry != null) {
-                agent.setSkillRegistry(skillRegistry);
-                agent.setSkillContextBuffer(new SkillContextBuffer());
-            }
-
-            String context = "当前时间 " + LocalDateTime.now() + "。" + task.prompt;
-            result = agent.run(context);
-            log.info("Task result: id={}, length={}", task.id, result == null ? 0 : result.length());
-        } catch (Exception e) {
-            log.warn("Task execution failed: id=" + task.id, e);
-            result = "执行失败: " + e.getMessage();
+        } else {
+            // 用户创建的提醒：不需要调 LLM，直接把 prompt 当消息发送
+            result = task.prompt;
         }
 
         // 处理后续
@@ -214,9 +226,10 @@ public class ScheduledTaskManager implements Closeable {
                 removeTask(task.id);
                 log.info("One-time task done and removed: id={}", task.id);
             } else {
-                LocalDateTime next = LocalDateTime.now()
-                        .withHour(task.hour).withMinute(task.minute).withSecond(0);
-                if (!next.isAfter(LocalDateTime.now())) {
+                // 修复时间调度bug：保存当前时间用于比较，避免重复调用now()
+                LocalDateTime now = LocalDateTime.now();
+                LocalDateTime next = now.withHour(task.hour).withMinute(task.minute).withSecond(0).withNano(0);
+                if (!next.isAfter(now)) {
                     next = next.plusDays(1);
                 }
                 Task updated = new Task(task.id, task.type, task.prompt, task.hour, task.minute, next, true);
@@ -265,14 +278,31 @@ public class ScheduledTaskManager implements Closeable {
             if (inBody) { body.append(line).append("\n"); continue; }
             if (line.startsWith("id=")) id = line.substring(3);
             else if (line.startsWith("type=")) type = line.substring(5);
-            else if (line.startsWith("hour=")) hour = Integer.parseInt(line.substring(5));
-            else if (line.startsWith("minute=")) minute = Integer.parseInt(line.substring(7));
+            else if (line.startsWith("hour=")) {
+                try {
+                    hour = Integer.parseInt(line.substring(5));
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid hour format in task file: {}", file);
+                }
+            }
+            else if (line.startsWith("minute=")) {
+                try {
+                    minute = Integer.parseInt(line.substring(7));
+                } catch (NumberFormatException e) {
+                    log.warn("Invalid minute format in task file: {}", file);
+                }
+            }
             else if (line.startsWith("next_run=")) nextRun = line.substring(9);
             else if (line.startsWith("system=")) system = "yes".equals(line.substring(7));
         }
         prompt = body.toString().trim();
         if (id.isEmpty() || nextRun.isEmpty()) return null;
-        return new Task(id, type, prompt, hour, minute, LocalDateTime.parse(nextRun), system);
+        try {
+            return new Task(id, type, prompt, hour, minute, LocalDateTime.parse(nextRun), system);
+        } catch (Exception e) {
+            log.warn("Failed to parse task file: {}, error: {}", file, e.getMessage());
+            return null;
+        }
     }
 
     @Override
