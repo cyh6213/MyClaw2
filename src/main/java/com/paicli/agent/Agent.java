@@ -260,21 +260,17 @@ public class Agent {
                 // 存入记忆
                 memoryManager.addAssistantMessage(response.content());
 
-                // 将整轮对话 retain 到 Hindsight（如果启用）
-                long retainStart = System.currentTimeMillis();
+                // 将整轮对话 retain 到 Hindsight（如果启用，异步执行不阻塞）
                 memoryManager.retainConversation(userInput, response.content());
-                log.info("retainConversation took {} ms", System.currentTimeMillis() - retainStart);
 
                 // 记录 token 使用
                 memoryManager.recordTokenUsage(budget.totalInputTokens(), budget.totalOutputTokens(), budget.totalCachedInputTokens());
                 pushStatus(budget, startNanos, "idle");
-                long beforeLog = System.currentTimeMillis();
                 log.info("ReAct run finished: inputTokens={}, outputTokens={}, reasoningChars={}, answerChars={}",
                         budget.totalInputTokens(),
                         budget.totalOutputTokens(),
                         response.reasoningContent() == null ? 0 : response.reasoningContent().length(),
                         response.content() == null ? 0 : response.content().length());
-                log.info("log.info took {} ms", System.currentTimeMillis() - beforeLog);
                 if (log.isDebugEnabled()) {
                     log.debug("Assistant answer preview: {}", preview(response.content(), 500));
                 }

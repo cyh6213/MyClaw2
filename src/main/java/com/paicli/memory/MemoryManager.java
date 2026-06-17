@@ -9,6 +9,8 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Memory 管理器 - Memory 系统的门面类
@@ -28,6 +30,7 @@ public class MemoryManager {
     private final MemoryRetriever retriever;
     private TokenBudget tokenBudget;
     private ContextProfile contextProfile;
+    private final ExecutorService retainExecutor;
     private String currentProject;
 
     public MemoryManager(LlmClient llmClient) {
@@ -55,6 +58,11 @@ public class MemoryManager {
         this.retriever = new MemoryRetriever(shortTermMemory, this.longTermMemory);
         this.tokenBudget = new TokenBudget(contextProfile.maxContextWindow());
         this.currentProject = defaultProjectKey();
+        this.retainExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread t = new Thread(r, "hindsight-retain-thread");
+            t.setDaemon(true);
+            return t;
+        });
     }
 
     public void setLlmClient(LlmClient llmClient) {
@@ -106,12 +114,20 @@ public class MemoryManager {
     }
 
     /**
-     * 将整轮对话 retain 到 Hindsight（用户消息 + 助手回复一起）
+     * 将整轮对话 retain 到 Hindsight（异步执行，不阻塞）
      * 在 Agent 每轮对话完成后调用
      */
     public void retainConversation(String userMessage, String assistantMessage) {
         if (longTermMemory instanceof HindsightMemory hindsightMemory) {
-            hindsightMemory.storeConversation(userMessage, assistantMessage);
+            retainExecutor.submit(() -> {
+                try {
+                    long start = System.currentTimeMillis();
+                    hindsightMemory.storeConversation(userMessage, assistantMessage);
+                    log.debug("Hindsight retain completed in {} ms", System.currentTimeMillis() - start);
+                } catch (Exception e) {
+                    log.warn("Hindsight retain failed (async): {}", e.getMessage());
+                }
+            });
         }
     }
 
