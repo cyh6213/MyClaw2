@@ -189,11 +189,12 @@ public class MemoryManager {
      * 否则回退到本地关键词匹配
      */
     public String buildContextForQuery(String query, int maxTokens) {
+        log.info("buildContextForQuery called, isUsingHindsight={}, query='{}'", isUsingHindsight(), query);
         if (longTermMemory instanceof HindsightMemory hindsightMemory) {
             try {
                 List<MemoryEntry> recalled = hindsightMemory.getClient().recall(query, 10);
+                log.info("Hindsight recall returned {} memories", recalled.size());
                 if (recalled.isEmpty()) {
-                    log.debug("Hindsight recall returned 0 memories for query: {}", query);
                     return "";
                 }
 
@@ -214,6 +215,7 @@ public class MemoryManager {
                 log.warn("Hindsight recall failed, fallback to local: {}", e.getMessage());
             }
         }
+        log.info("Using local retriever for query '{}'", query);
         return retriever.buildContextForQuery(query, maxTokens, currentProject);
     }
 
