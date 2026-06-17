@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Maven build output
+target/
+dependency-reduced-pom.xml
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Docs (not needed in runtime image)
+docs/
+img/
+poster/
+ppt/
+landing/
+
+# Demo
+demo/

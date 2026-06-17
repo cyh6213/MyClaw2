@@ -1,0 +1,67 @@
+version: "3.9"
+
+services:
+  # ============================================
+  # PaiCLI - Java Agent CLI 主程序
+  # ============================================
+  paicli:
+    build: .
+    image: paicli:latest
+    container_name: paicli
+    restart: always          # 崩溃自动拉起
+    ports:
+      - "8080:8080"          # Runtime API
+    environment:
+      # --- LLM API Keys（按需启用）---
+      - GLM_API_KEY=${GLM_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - STEP_API_KEY=${STEP_API_KEY:-}
+      - KIMI_API_KEY=${KIMI_API_KEY:-}
+      - FREELLMAPI_API_KEY=${FREELLMAPI_API_KEY:-}
+      - XFYUN_MAAS_API_KEY=${XFYUN_MAAS_API_KEY:-}
+      # --- 默认模型 ---
+      - PAICLI_DEFAULT_PROVIDER=${PAICLI_DEFAULT_PROVIDER:-glm}
+      # --- Hindsight 记忆服务 ---
+      - HINDSIGHT_URL=http://hindsight:8888
+      - HINDSIGHT_BANK_ID=${HINDSIGHT_BANK_ID:-claw}
+      # --- Runtime API 认证 ---
+      - PAICLI_RUNTIME_API_KEY=${PAICLI_RUNTIME_API_KEY:-changeme}
+      # --- 其他配置 ---
+      - TZ=Asia/Shanghai
+    volumes:
+      # 持久化数据（记忆、配置、快照、任务等）
+      - paicli_data:/root/.paicli
+      # 可选：挂载项目目录让 PaiCLI 操作
+      - ${WORKSPACE_DIR:-./workspace}:/workspace
+    working_dir: /workspace
+    depends_on:
+      hindsight:
+        condition: service_healthy
+    # 交互模式（需要时取消注释）
+    # stdin_open: true
+    # tty: true
+
+  # ============================================
+  # Hindsight - 向量记忆服务
+  # ============================================
+  hindsight:
+    image: ${HINDSIGHT_IMAGE:-hindsight:latest}
+    container_name: paicli-hindsight
+    restart: always
+    ports:
+      - "8888:8888"
+    environment:
+      - TZ=Asia/Shanghai
+      - HINDSIGHT_DATA_DIR=/data
+    volumes:
+      - hindsight_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  paicli_data:
+  hindsight_data:
