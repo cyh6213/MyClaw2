@@ -43,7 +43,7 @@ public class HindsightMemory implements Memory {
             tokenCounter.addAndGet(MemoryEntry.estimateTokens(userMessage) + MemoryEntry.estimateTokens(assistantMessage));
             log.debug("Stored conversation to Hindsight");
         } catch (IOException e) {
-            log.warn("Failed to store conversation to Hindsight: {}", e.getMessage());
+            log.debug("Failed to store conversation to Hindsight: {}", e.getMessage());
         }
     }
 
