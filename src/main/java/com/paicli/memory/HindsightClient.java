@@ -90,14 +90,18 @@ public class HindsightClient {
 
             String responseBody = response.body() != null ? response.body().string() : "{}";
             JsonNode root = mapper.readTree(responseBody);
-            JsonNode memories = root.get("memories");
+            // Hindsight API 返回 results 字段，不是 memories
+            JsonNode results = root.get("results");
+            if (results == null || !results.isArray()) {
+                results = root.get("memories");
+            }
 
             List<MemoryEntry> entries = new ArrayList<>();
-            if (memories != null && memories.isArray()) {
-                for (JsonNode memory : memories) {
-                    String text = memory.has("text") ? memory.get("text").asText() : "";
-                    String type = memory.has("type") ? memory.get("type").asText() : "experience";
-                    String id = memory.has("id") ? memory.get("id").asText() : "";
+            if (results != null && results.isArray()) {
+                for (JsonNode item : results) {
+                    String text = item.has("text") ? item.get("text").asText() : "";
+                    String type = item.has("type") ? item.get("type").asText() : "experience";
+                    String id = item.has("id") ? item.get("id").asText() : "";
 
                     if (!text.isEmpty()) {
                         MemoryEntry.MemoryType entryType = "observation".equals(type)
