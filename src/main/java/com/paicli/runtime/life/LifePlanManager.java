@@ -71,10 +71,17 @@ public class LifePlanManager {
     }
 
     /**
-     * 获取人生大纲
+     * 获取人生大纲（优先读取 timeline-life.md，兼容现有文件结构）
      */
     public String getLifePlan() {
-        return readFile(getCurrentSoulDir(), "life-plan.md");
+        Path dir = getCurrentSoulDir();
+        // 优先读取 timeline-life.md（现有文件结构）
+        String content = readFile(dir, "timeline-life.md");
+        if (!content.isEmpty()) {
+            return content;
+        }
+        // 回退到 life-plan.md（新格式）
+        return readFile(dir, "life-plan.md");
     }
 
     /**

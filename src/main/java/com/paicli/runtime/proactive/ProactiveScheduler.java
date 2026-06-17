@@ -8,6 +8,7 @@ import com.paicli.prompt.PromptAssembler;
 import com.paicli.prompt.PromptContext;
 import com.paicli.prompt.PromptMode;
 import com.paicli.render.Renderer;
+import com.paicli.runtime.life.LifePlanManager;
 import com.paicli.skill.SkillContextBuffer;
 import com.paicli.skill.SkillRegistry;
 import com.paicli.tool.ToolRegistry;
@@ -58,6 +59,8 @@ public class ProactiveScheduler implements Closeable {
 
     private final ScheduledExecutorService scheduler;
     private final Path configPath;
+    private final Path projectPath;
+    private final LifePlanManager lifePlanManager;
     private final List<ProactiveListener> listeners = new CopyOnWriteArrayList<>();
     
     private volatile boolean running;
@@ -95,7 +98,9 @@ public class ProactiveScheduler implements Closeable {
     }
 
     public ProactiveScheduler(Path projectPath) {
-        this.configPath = projectPath.toAbsolutePath().normalize().resolve(".paicli/proactive");
+        this.projectPath = projectPath.toAbsolutePath().normalize();
+        this.configPath = this.projectPath.resolve(".paicli/proactive");
+        this.lifePlanManager = new LifePlanManager(this.projectPath);
         this.scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
             Thread t = new Thread(r, "paicli-proactive");
             t.setDaemon(true);
@@ -348,20 +353,7 @@ public class ProactiveScheduler implements Closeable {
     }
 
     private String loadLifeContext() {
-        try {
-            Path soulsDir = configPath.getParent().resolve("souls");
-            try (var dirs = Files.newDirectoryStream(soulsDir, Files::isDirectory)) {
-                for (Path dir : dirs) {
-                    Path dayPlanFile = dir.resolve("day-plan.md");
-                    if (Files.isReadable(dayPlanFile)) {
-                        return Files.readString(dayPlanFile);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to load life context", e);
-        }
-        return "";
+        return lifePlanManager.getLifeContext();
     }
 
     private String loadRecentHistory() {
