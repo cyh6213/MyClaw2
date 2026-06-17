@@ -82,7 +82,9 @@ public class ToolRegistry {
     // 需要审计的内置工具（与 ApprovalPolicy 的 DANGEROUS_TOOLS 保持一致）；MCP 工具按前缀动态纳入审计。
     private static final Set<String> AUDIT_TOOLS = Set.of("write_file", "execute_command", "create_project", "revert_turn");
     /** 在 CHAT 模式下也允许调用的安全工具 */
-    private static final Set<String> SAFE_IN_CHAT = Set.of("add_scheduled_task", "remove_scheduled_task", "list_scheduled_tasks");
+    private static final Set<String> SAFE_IN_CHAT = Set.of(
+            "add_scheduled_task", "remove_scheduled_task", "list_scheduled_tasks", "save_memory"
+    );
     private final Map<String, Tool> tools = new ConcurrentHashMap<>();
     private final Map<String, McpRegisteredTool> mcpTools = new ConcurrentHashMap<>();
     private final long commandTimeoutSeconds;

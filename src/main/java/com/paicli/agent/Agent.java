@@ -418,9 +418,17 @@ public class Agent {
 
     private String buildProjectMemoryContext() {
         try {
+            // CHAT 模式：加载用户记忆文件，替代 PAI.md
+            if (currentMode == PromptMode.CHAT) {
+                Path userMemoryFile = Path.of(toolRegistry.getProjectPath()).resolve(".paicli/user-memory.md");
+                if (Files.isReadable(userMemoryFile)) {
+                    return Files.readString(userMemoryFile);
+                }
+                return "";
+            }
             return ProjectMemoryLoader.createDefault(Path.of(toolRegistry.getProjectPath())).loadForPrompt();
         } catch (Exception e) {
-            log.warn("Failed to load PAI.md project memory", e);
+            log.warn("Failed to load project/user memory", e);
             return "";
         }
     }

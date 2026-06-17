@@ -40,6 +40,11 @@ final class CliCommandParser {
         BROWSER,
         WECHAT,
         TASK,
+        PROACTIVE_STATUS,
+        PROACTIVE_MUTE,
+        PROACTIVE_UNMUTE,
+        PERSONA,
+        LIFE_PLAN,
         SKILL_LIST,
         SKILL_SHOW,
         SKILL_ON,
@@ -274,6 +279,29 @@ final class CliCommandParser {
 
         if (trimmed.regionMatches(true, 0, "/task ", 0, 6)) {
             return new ParsedCommand(CommandType.TASK, trimmed.substring(6).trim());
+        }
+
+        // 主动对话相关命令
+        if (trimmed.equalsIgnoreCase("/主动状态") || trimmed.equalsIgnoreCase("/proactive")) {
+            return new ParsedCommand(CommandType.PROACTIVE_STATUS, null);
+        }
+
+        if (trimmed.regionMatches(true, 0, "/静音 ", 0, 5)) {
+            String hours = trimmed.substring(5).trim();
+            return new ParsedCommand(CommandType.PROACTIVE_MUTE, hours);
+        }
+
+        if (trimmed.equalsIgnoreCase("/常态") || trimmed.equalsIgnoreCase("/unmute")) {
+            return new ParsedCommand(CommandType.PROACTIVE_UNMUTE, null);
+        }
+
+        // 角色/人生计划相关命令
+        if (trimmed.equalsIgnoreCase("/人格") || trimmed.equalsIgnoreCase("/persona")) {
+            return new ParsedCommand(CommandType.PERSONA, null);
+        }
+
+        if (trimmed.equalsIgnoreCase("/人生计划") || trimmed.equalsIgnoreCase("/life")) {
+            return new ParsedCommand(CommandType.LIFE_PLAN, null);
         }
 
         if (trimmed.equalsIgnoreCase("/skill") || trimmed.equalsIgnoreCase("/skill list")) {

@@ -40,6 +40,8 @@ import com.paicli.runtime.CancellationContext;
 import com.paicli.runtime.CancellationToken;
 import com.paicli.runtime.api.RuntimeApiServer;
 import com.paicli.runtime.api.RuntimeThreadStore;
+import com.paicli.runtime.proactive.ProactiveScheduler;
+import com.paicli.runtime.life.LifePlanManager;
 import com.paicli.runtime.task.DurableTaskManager;
 import com.paicli.runtime.task.ScheduledTaskManager;
 import com.paicli.runtime.task.TaskCommandFormatter;
@@ -353,6 +355,24 @@ public class Main {
                 Runtime.getRuntime().addShutdownHook(new Thread(scheduledTaskManager::close, "paicli-scheduler-shutdown"));
             } catch (Exception e) {
                 System.err.println("⚠️ 定时任务调度器启动失败: " + e.getMessage());
+            }
+            // 初始化主动对话调度器
+            ProactiveScheduler proactiveScheduler = null;
+            LifePlanManager lifePlanManager = null;
+            try {
+                proactiveScheduler = new ProactiveScheduler(Path.of(reactAgent.getToolRegistry().getProjectPath()));
+                proactiveScheduler.setSkillRegistry(skillRegistry);
+                proactiveScheduler.setRenderer(renderer);
+                proactiveScheduler.addListener((message, source) -> {
+                    ui.println("\n💬 " + message);
+                });
+                proactiveScheduler.start();
+                Runtime.getRuntime().addShutdownHook(new Thread(proactiveScheduler::close, "paicli-proactive-shutdown"));
+                
+                // 初始化人生计划管理器
+                lifePlanManager = new LifePlanManager(Path.of(reactAgent.getToolRegistry().getProjectPath()));
+            } catch (Exception e) {
+                System.err.println("⚠️ 主动对话调度器启动失败: " + e.getMessage());
             }
             WechatRuntimeController wechatRuntime = new WechatRuntimeController(renderer);
             Runtime.getRuntime().addShutdownHook(new Thread(wechatRuntime::stop, "paicli-wechat-shutdown"));
@@ -753,6 +773,62 @@ public class Main {
                             }
                         } else {
                             printMcpCommandResult(ui, TaskCommandFormatter.handle(taskManager, payload));
+                        }
+                        continue;
+                    }
+                    case PROACTIVE_STATUS -> {
+                        if (proactiveScheduler == null) {
+                            ui.println("主动对话调度器未启动。");
+                        } else {
+                            ui.println(proactiveScheduler.getStatus());
+                        }
+                        continue;
+                    }
+                    case PROACTIVE_MUTE -> {
+                        if (proactiveScheduler == null) {
+                            ui.println("主动对话调度器未启动。");
+                        } else {
+                            String hoursStr = command.payload();
+                            int hours = 1;
+                            if (hoursStr != null && !hoursStr.isBlank()) {
+                                try {
+                                    hours = Integer.parseInt(hoursStr);
+                                } catch (NumberFormatException ignored) {}
+                            }
+                            proactiveScheduler.mute(hours);
+                            ui.println("🔇 已静音 " + hours + " 小时");
+                        }
+                        continue;
+                    }
+                    case PROACTIVE_UNMUTE -> {
+                        if (proactiveScheduler == null) {
+                            ui.println("主动对话调度器未启动。");
+                        } else {
+                            proactiveScheduler.unmute();
+                            ui.println("🔔 已解除静音");
+                        }
+                        continue;
+                    }
+                    case PERSONA -> {
+                        if (lifePlanManager == null) {
+                            ui.println("人生计划管理器未启动。");
+                        } else {
+                            String summary = lifePlanManager.getPersonaSummary();
+                            String lifeContext = lifePlanManager.getLifeContext();
+                            ui.println("📋 当前角色信息：");
+                            ui.println(summary);
+                            if (!lifeContext.isEmpty()) {
+                                ui.println("\n📅 人生计划：");
+                                ui.println(lifeContext);
+                            }
+                        }
+                        continue;
+                    }
+                    case LIFE_PLAN -> {
+                        if (lifePlanManager == null) {
+                            ui.println("人生计划管理器未启动。");
+                        } else {
+                            ui.println(lifePlanManager.getLifeContext());
                         }
                         continue;
                     }
@@ -1632,6 +1708,14 @@ public class Main {
                 new SlashCommandHint("/任务列表", "/任务列表", "查看定时任务列表"),
                 new SlashCommandHint("/任务运行 ", "/任务运行 <id>", "手动触发定时任务立即执行"),
                 new SlashCommandHint("/task run ", "/task run <id>", "手动触发定时任务立即执行"),
+                new SlashCommandHint("/主动状态", "/主动状态", "查看主动对话状态"),
+                new SlashCommandHint("/proactive", "/proactive", "查看主动对话状态"),
+                new SlashCommandHint("/静音 ", "/静音 <小时数>", "静音N小时（如 /静音 2）"),
+                new SlashCommandHint("/常态", "/常态", "恢复默认主动触发频率"),
+                new SlashCommandHint("/人格", "/人格", "查看当前角色设定"),
+                new SlashCommandHint("/persona", "/persona", "查看当前角色设定"),
+                new SlashCommandHint("/人生计划", "/人生计划", "查看人生计划"),
+                new SlashCommandHint("/life", "/life", "查看人生计划"),
                 new SlashCommandHint("/mcp", "/mcp", "查看 MCP server 状态"),
                 new SlashCommandHint("/mcp restart ", "/mcp restart <name>", "重启 MCP server"),
                 new SlashCommandHint("/mcp logs ", "/mcp logs <name>", "查看 MCP server 日志"),
