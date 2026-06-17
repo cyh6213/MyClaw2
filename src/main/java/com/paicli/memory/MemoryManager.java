@@ -15,11 +15,15 @@ import java.util.UUID;
  *
  * 统一管理短期记忆、长期记忆、上下文压缩和检索，
  * 为 Agent 提供简洁的记忆存取接口。
+ *
+ * 支持两种长期记忆实现：
+ * - 本地文件存储（LongTermMemory）
+ * - Hindsight 向量+图数据库（HindsightMemory）
  */
 public class MemoryManager {
     private static final Logger log = LoggerFactory.getLogger(MemoryManager.class);
     private final ConversationMemory shortTermMemory;
-    private final LongTermMemory longTermMemory;
+    private final Memory longTermMemory;
     private final ContextCompressor compressor;
     private final MemoryRetriever retriever;
     private TokenBudget tokenBudget;
@@ -39,11 +43,11 @@ public class MemoryManager {
         this(llmClient, shortTermBudget, contextWindow, null);
     }
 
-    public MemoryManager(LlmClient llmClient, int shortTermBudget, int contextWindow, LongTermMemory longTermMemory) {
+    public MemoryManager(LlmClient llmClient, int shortTermBudget, int contextWindow, Memory longTermMemory) {
         this(llmClient, ContextProfile.custom(contextWindow, shortTermBudget), longTermMemory);
     }
 
-    private MemoryManager(LlmClient llmClient, ContextProfile contextProfile, LongTermMemory longTermMemory) {
+    public MemoryManager(LlmClient llmClient, ContextProfile contextProfile, Memory longTermMemory) {
         this.contextProfile = contextProfile;
         this.shortTermMemory = new ConversationMemory(contextProfile.shortTermMemoryBudget());
         this.longTermMemory = longTermMemory != null ? longTermMemory : new LongTermMemory();
@@ -157,7 +161,12 @@ public class MemoryManager {
     }
 
     public List<MemoryEntry> searchLongTerm(String query, int limit) {
-        return longTermMemory.search(query, limit, currentProject);
+        if (longTermMemory instanceof LongTermMemory) {
+            return ((LongTermMemory) longTermMemory).search(query, limit, currentProject);
+        } else if (longTermMemory instanceof HindsightMemory) {
+            return ((HindsightMemory) longTermMemory).search(query, limit, currentProject);
+        }
+        return longTermMemory.search(query, limit);
     }
 
     public boolean deleteLongTerm(String id) {
@@ -169,6 +178,14 @@ public class MemoryManager {
      */
     public String buildContextForQuery(String query, int maxTokens) {
         return retriever.buildContextForQuery(query, maxTokens, currentProject);
+    }
+
+    public boolean isUsingHindsight() {
+        return longTermMemory instanceof HindsightMemory;
+    }
+
+    public HindsightMemory getHindsightMemory() {
+        return isUsingHindsight() ? (HindsightMemory) longTermMemory : null;
     }
 
     /**
@@ -222,15 +239,23 @@ public class MemoryManager {
      * 获取记忆系统的整体状态
      */
     public String getSystemStatus() {
+        String longTermStatus;
+        if (longTermMemory instanceof LongTermMemory) {
+            longTermStatus = ((LongTermMemory) longTermMemory).getStatusSummary();
+        } else if (longTermMemory instanceof HindsightMemory) {
+            longTermStatus = ((HindsightMemory) longTermMemory).getStatusSummary();
+        } else {
+            longTermStatus = "长期记忆: " + longTermMemory.size() + "条 / " + longTermMemory.getTokenCount() + " tokens";
+        }
         return "上下文策略: " + contextProfile.summary() + "\n" +
                 shortTermMemory.getStatusSummary() + "\n" +
-                longTermMemory.getStatusSummary() + "\n" +
+                longTermStatus + "\n" +
                 tokenBudget.getUsageReport();
     }
 
     // Getter
     public ConversationMemory getShortTermMemory() { return shortTermMemory; }
-    public LongTermMemory getLongTermMemory() { return longTermMemory; }
+    public Memory getLongTermMemory() { return longTermMemory; }
     public TokenBudget getTokenBudget() { return tokenBudget; }
     public ContextProfile getContextProfile() { return contextProfile; }
 

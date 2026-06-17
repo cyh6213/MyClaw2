@@ -19,6 +19,10 @@ import com.paicli.llm.LlmClient;
 import com.paicli.llm.LlmClientFactory;
 import com.paicli.memory.LongTermMemory;
 import com.paicli.memory.MemoryEntry;
+import com.paicli.memory.HindsightClient;
+import com.paicli.memory.HindsightMemory;
+import com.paicli.memory.MemoryManager;
+import com.paicli.context.ContextProfile;
 import com.paicli.render.Renderer;
 import com.paicli.render.RendererFactory;
 import com.paicli.render.StatusInfo;
@@ -319,7 +323,9 @@ public class Main {
             hitlToolRegistry.setSkillRegistry(skillRegistry);
             hitlToolRegistry.setSkillContextBuffer(skillContextBuffer);
 
-            Agent reactAgent = new Agent(llmClient, hitlToolRegistry);
+            MemoryManager memoryManager = createMemoryManager(llmClient);
+
+            Agent reactAgent = new Agent(llmClient, hitlToolRegistry, memoryManager);
             reactAgent.setExternalContextSupplier(mcpServerManager::resourceIndexForPrompt);
             reactAgent.setSkillRegistry(skillRegistry);
             reactAgent.setSkillContextBuffer(skillContextBuffer);
@@ -1103,7 +1109,7 @@ public class Main {
                 store.close();
             }, "paicli-runtime-api-shutdown"));
             server.start();
-            System.out.println("✅ PaiCLI Runtime API 已启动: http://127.0.0.1:" + server.port());
+            System.out.println("✅ MyClaw Runtime API 已启动: http://127.0.0.1:" + server.port());
             System.out.println("   认证: Authorization: Bearer <PAICLI_RUNTIME_API_KEY>");
             new CountDownLatch(1).await();
         } catch (InterruptedException e) {
@@ -3115,7 +3121,10 @@ public class Main {
             return sb.append("📭 没有匹配的长期记忆。").toString();
         }
         for (MemoryEntry entry : entries) {
-            String scope = LongTermMemory.scopeOf(entry);
+            String scope = entry.getMetadata().get("scope");
+            if (scope == null || scope.isBlank()) {
+                scope = "global";
+            }
             String project = entry.getMetadata().get("project");
             sb.append("- ")
                     .append(entry.getId())
@@ -3123,7 +3132,10 @@ public class Main {
             if ("project".equals(scope) && project != null && !project.isBlank()) {
                 sb.append(" ").append(shortenPath(project));
             }
-            sb.append(" · ").append(entry.getTimestamp()).append("\n")
+            if (entry.getTimestamp() != null) {
+                sb.append(" · ").append(entry.getTimestamp());
+            }
+            sb.append("\n")
                     .append("  ").append(entry.getContent()).append("\n");
         }
         return sb.toString().trim();
@@ -3159,5 +3171,31 @@ public class Main {
     }
 
     private record MemorySaveRequest(String fact, String scope) {
+    }
+
+    private static MemoryManager createMemoryManager(LlmClient llmClient) {
+        String hindsightUrl = System.getenv("HINDSIGHT_URL");
+        if (hindsightUrl == null || hindsightUrl.isBlank()) {
+            hindsightUrl = "http://localhost:8888";
+        }
+        String bankId = System.getenv("HINDSIGHT_BANK_ID");
+        if (bankId == null || bankId.isBlank()) {
+            bankId = "claw";
+        }
+
+        try {
+            HindsightClient client = new HindsightClient(hindsightUrl, bankId);
+            if (client.isHealthy()) {
+                System.out.println("✅ Hindsight 连接成功，使用 Hindsight 长期记忆");
+                HindsightMemory hindsightMemory = new HindsightMemory(client);
+                return new MemoryManager(llmClient, ContextProfile.from(llmClient), hindsightMemory);
+            } else {
+                System.out.println("⚠️ Hindsight 不可用，回退到本地文件存储");
+            }
+        } catch (Exception e) {
+            System.out.println("⚠️ Hindsight 初始化失败，回退到本地文件存储: " + e.getMessage());
+        }
+
+        return new MemoryManager(llmClient);
     }
 }

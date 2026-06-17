@@ -69,15 +69,19 @@ public class Agent {
     }
 
     public Agent(LlmClient llmClient, ToolRegistry toolRegistry) {
+        this(llmClient, toolRegistry, null);
+    }
+
+    public Agent(LlmClient llmClient, ToolRegistry toolRegistry, MemoryManager memoryManager) {
         this.llmClient = llmClient;
         this.toolRegistry = toolRegistry;
         this.conversationHistory = new ArrayList<>();
-        this.memoryManager = new MemoryManager(llmClient);
+        this.memoryManager = memoryManager != null ? memoryManager : new MemoryManager(llmClient);
         this.historyCompactor = new ConversationHistoryCompactor(llmClient);
-        this.toolRegistry.setContextProfile(memoryManager.getContextProfile());
+        this.toolRegistry.setContextProfile(this.memoryManager.getContextProfile());
         this.toolRegistry.setCurrentModel(llmClient.getProviderName(), llmClient.getModelName());
         this.memoryManager.setProjectPath(this.toolRegistry.getProjectPath());
-        this.toolRegistry.setScopedMemorySaver(memoryManager::storeFact);
+        this.toolRegistry.setScopedMemorySaver(this.memoryManager::storeFact);
         conversationHistory.add(LlmClient.Message.system(buildSystemPrompt("")));
     }
 

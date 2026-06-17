@@ -13,9 +13,9 @@ import java.util.stream.Collectors;
  */
 public class MemoryRetriever {
     private final ConversationMemory shortTermMemory;
-    private final LongTermMemory longTermMemory;
+    private final Memory longTermMemory;
 
-    public MemoryRetriever(ConversationMemory shortTermMemory, LongTermMemory longTermMemory) {
+    public MemoryRetriever(ConversationMemory shortTermMemory, Memory longTermMemory) {
         this.shortTermMemory = shortTermMemory;
         this.longTermMemory = longTermMemory;
     }
@@ -66,8 +66,16 @@ public class MemoryRetriever {
     }
 
     public List<MemoryEntry> retrieveLongTerm(String query, int limit, String projectKey) {
-        return longTermMemory.getAll().stream()
-                .filter(entry -> LongTermMemory.isVisibleInProject(entry, projectKey))
+        List<MemoryEntry> all;
+        if (longTermMemory instanceof LongTermMemory) {
+            all = ((LongTermMemory) longTermMemory).getAll(projectKey);
+        } else if (longTermMemory instanceof HindsightMemory) {
+            all = ((HindsightMemory) longTermMemory).getAll(projectKey);
+        } else {
+            all = longTermMemory.getAll();
+        }
+
+        return all.stream()
                 .map(entry -> new ScoredEntry(entry, computeRelevanceScore(entry, query) * 1.2, false))
                 .filter(scoredEntry -> scoredEntry.score() > 0)
                 .sorted(Comparator.comparingDouble(ScoredEntry::score).reversed())

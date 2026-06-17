@@ -83,7 +83,7 @@ public final class WechatCommandMain {
         WechatAccountStore store = WechatAccountStore.createDefault();
         WechatAccount account = store.loadLatest()
                 .orElseThrow(() -> new IllegalStateException("未找到微信账号，请先执行 paicli wechat setup"));
-        System.out.println("PaiCLI 微信通道启动中，账号: " + account.accountId());
+        System.out.println("MyClaw 微信通道启动中，账号: " + account.accountId());
 
         // 启动定时任务调度器
         String ws = account.workspace() == null || account.workspace().isBlank()
@@ -239,11 +239,11 @@ public final class WechatCommandMain {
 
     private static void printHelp() {
         System.out.println("""
-                PaiCLI 微信通道：
-                  paicli wechat setup
-                  paicli wechat start
-                  paicli wechat status
-                  paicli wechat daemon start|stop|restart|status|logs
+                MyClaw 微信通道：
+                  myclaw wechat setup
+                  myclaw wechat start
+                  myclaw wechat status
+                  myclaw wechat daemon start|stop|restart|status|logs
                 """.trim());
     }
 
