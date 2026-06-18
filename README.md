@@ -1,17 +1,41 @@
 # MyClaw
 
-一个 AI 角色扮演伴侣 CLI，基于 PaiCLI 改造而来。
+一个 AI 角色扮演伴侣，基于 PaiCLI 改造而来。
 
-不再是编程助手，而是一个有血有肉的 AI 伙伴——可以设定角色、聊天陪伴、主动问候、记住你们之间的事。
+不再是编程助手，而是一个有血有肉的 AI 伙伴——可以设定角色、聊天陪伴、主动问候、记住你们之间的事。支持 CLI 终端和微信双通道交互。
 
 ## 快速开始
 
+### 本地运行
+
 ```bash
 cd paicli-main
+
+# 配置 API Key
+cp .env.example .env
+# 编辑 .env，填入你的 API Key（支持 GLM / DeepSeek / Step / Kimi / SiliconFlow 等）
+
+# 构建
+mvn clean package -DskipTests
+
+# 运行
 java -jar target/myclaw-1.0-SNAPSHOT.jar
 ```
 
-首次运行前需要配置 API Key（支持 SiliconFlow / GLM / DeepSeek 等）。
+### Docker 部署
+
+```bash
+# 构建镜像
+docker compose build
+
+# 启动（含 Hindsight 长期记忆服务）
+docker compose up -d
+
+# 查看日志
+docker compose logs -f paicli
+```
+
+首次运行进入交互式 CLI，输入 `/创建角色` 开始。
 
 ## 核心功能
 
@@ -28,6 +52,7 @@ java -jar target/myclaw-1.0-SNAPSHOT.jar
 每个角色存储在 `.paicli/souls/<角色名>/` 目录下，包含：
 - `soul.md` — 角色核心配置（性格、喜好、说话风格、禁止行为）
 - `timeline-life.md` — 角色人生动线
+- `life-plan.md` / `year-plan.md` / `month-plan.md` / `week-plan.md` / `day-plan.md` — 五级人生计划
 
 ### 对话系统
 
@@ -54,7 +79,7 @@ java -jar target/myclaw-1.0-SNAPSHOT.jar
 
 ### 主动对话
 
-角色可以在特定时间主动给你发消息（需配置定时任务）。
+角色可以在特定时间主动给你发消息。
 
 | 命令 | 说明 |
 |------|------|
@@ -62,7 +87,15 @@ java -jar target/myclaw-1.0-SNAPSHOT.jar
 | `/静音 <小时>` | 静音指定小时 |
 | `/常态` | 恢复常态 |
 
+触发规则：
+- 禁止时段：凌晨 0:00-7:00 不触发
+- 空闲触发：上次对话结束超过 30 分钟，每天最多 2 次
+- 时段触发：早 8-9、午 12-13、晚 20-22 各 1 次，每天最多 3 次
+- 连续 2 次被忽略 → 当天频率减半
+
 ### 定时任务
+
+系统每天凌晨 3:00 自动运行日常模拟任务，推进角色生活。
 
 | 命令 | 说明 |
 |------|------|
@@ -82,6 +115,8 @@ java -jar target/myclaw-1.0-SNAPSHOT.jar
 
 ### 微信通道
 
+在服务器上部署后，可以通过微信与角色聊天。
+
 | 命令 | 说明 |
 |------|------|
 | `/wechat` | 绑定并启动微信通道 |
@@ -97,6 +132,7 @@ java -jar target/myclaw-1.0-SNAPSHOT.jar
 | `/clear` | 清空对话历史 |
 | `/compact` | 压缩上下文 |
 | `/model <模型名>` | 切换模型 |
+| `/export` | 导出对话为 Markdown |
 
 ## 角色设定指南
 
@@ -150,24 +186,28 @@ inner_monologue:
 
 ```
 MyClaw
-├── Agent           # 核心对话引擎（ReAct 循环）
-├── MemoryManager   # 记忆管理（短期 + 长期）
-├── Hindsight       # 向量数据库长期记忆（Docker）
-├── PromptAssembler # Prompt 组装器
-├── SkillRegistry   # Skill 系统
-├── ProactiveScheduler # 主动对话调度器
-└── ScheduledTaskManager # 定时任务管理器
+├── Agent               # 核心对话引擎（ReAct 循环）
+├── MemoryManager       # 记忆管理（短期 + 长期）
+├── Hindsight           # 向量数据库长期记忆
+├── PromptAssembler     # Prompt 组装器
+├── SkillRegistry       # Skill 系统
+├── ProactiveScheduler  # 主动对话调度器
+├── ScheduledTaskManager # 定时任务管理器
+├── LifePlanManager     # 人生计划管理器
+├── InnerMonologueConfig # 内心独白配置
+├── Wechat Channel      # 微信 iLink 通道
+└── Runtime API         # HTTP API 服务
 ```
 
 ### 依赖
 
 - Java 17+
-- Docker（可选，用于 Hindsight 长期记忆）
+- Docker（可选，用于 Hindsight 长期记忆和容器化部署）
 - 一个兼容 OpenAI 格式的 LLM API Key
 
 ## Hindsight 长期记忆
 
-Hindsight 是一个独立的向量数据库服务，用于存储和检索长期记忆。
+Hindsight 是独立的向量数据库服务，用于存储和检索长期记忆。启动方式：
 
 ```bash
 docker run -d --pull never --name hindsight \
@@ -179,10 +219,51 @@ docker run -d --pull never --name hindsight \
   ghcr.io/vectorize-io/hindsight:latest
 ```
 
+如果 Hindsight 不可用，会自动回退到本地文件存储，功能不受影响。
+
+## 部署
+
+### Docker Compose（推荐）
+
+```bash
+# 1. 克隆代码到服务器
+git clone https://github.com/cyh6213/MyClaw2.git /opt/paicli
+
+# 2. 配置环境变量
+cd /opt/paicli/paicli-main
+cp .env.example .env
+# 编辑 .env，填入 API Key
+
+# 3. 启动
+docker compose up -d
+
+# 4. 进入交互模式
+docker attach paicli
+```
+
+### GitHub Actions 自动部署
+
+推送代码到 `main` 分支后，GitHub Actions 会自动：
+1. 编译打包
+2. 构建 Docker 镜像
+3. 推送到容器仓库
+4. SSH 到服务器拉取新镜像并重启
+
+需要在 GitHub 仓库设置 Secrets：
+| Secret | 说明 |
+|--------|------|
+| `SERVER_HOST` | 云服务器 IP |
+| `SERVER_USER` | SSH 用户名 |
+| `SERVER_SSH_KEY` | SSH 私钥 |
+
+### 崩溃自恢复
+
+Docker Compose 已配置 `restart: always`，进程崩溃后自动拉起，持久化数据（记忆、配置、任务队列）不会丢失。
+
 ## 构建
 
 ```bash
 cd paicli-main
-mvn package -DskipTests
+mvn clean package -DskipTests
 java -jar target/myclaw-1.0-SNAPSHOT.jar
 ```
