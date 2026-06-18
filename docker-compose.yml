@@ -42,7 +42,7 @@ services:
   # 这里复用你的 SiliconFlow API Key。
   # ============================================
   hindsight:
-    image: ghcr.io/vectorize-io/hindsight:latest
+    image: ghcr.nju.edu.cn/vectorize-io/hindsight:latest
     container_name: myclaw-hindsight
     restart: always
     ports:
