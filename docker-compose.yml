@@ -19,7 +19,7 @@ services:
       - KIMI_API_KEY=${KIMI_API_KEY:-}
       # --- 默认模型 ---
       - PAICLI_DEFAULT_PROVIDER=${PAICLI_DEFAULT_PROVIDER:-siliconflow}
-      # --- Hindsight 记忆服务（可选，不可用时自动回退本地文件）---
+      # --- Hindsight 记忆服务 ---
       - HINDSIGHT_URL=http://hindsight:8888
       - HINDSIGHT_BANK_ID=${HINDSIGHT_BANK_ID:-claw}
       # --- Runtime API 认证 ---
@@ -32,26 +32,30 @@ services:
       # 挂载项目目录让 MyClaw 操作
       - ${WORKSPACE_DIR:-./workspace}:/workspace
     working_dir: /workspace
-    # 交互模式（需要时取消注释，用 docker attach 进入）
-    # stdin_open: true
-    # tty: true
+    depends_on:
+      hindsight:
+        condition: service_healthy
 
   # ============================================
-  # Hindsight - 向量记忆服务（可选）
-  # 如果没有 hindsight 镜像，MyClaw 会自动回退本地文件存储
-  # 获取镜像：ghcr.io/vectorize-io/hindsight:latest
+  # Hindsight - 向量记忆服务
+  # Hindsight 本身也需要调用 LLM 做 embedding，
+  # 这里复用你的 SiliconFlow API Key。
   # ============================================
   hindsight:
-    image: ${HINDSIGHT_IMAGE:-ghcr.io/vectorize-io/hindsight:latest}
+    image: ghcr.io/vectorize-io/hindsight:latest
     container_name: myclaw-hindsight
     restart: always
-    profiles:
-      - hindsight
     ports:
       - "8888:8888"
     environment:
       - TZ=Asia/Shanghai
       - HINDSIGHT_DATA_DIR=/data
+      # Hindsight 内部使用的 LLM（用于 embedding）
+      - HINDSIGHT_API_LLM_API_KEY=${SILICONFLOW_API_KEY:-}
+      - HINDSIGHT_API_LLM_BASE_URL=https://api.siliconflow.cn/v1
+      - HINDSIGHT_API_LLM_MODEL=${SILICONFLOW_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
+      # HuggingFace 镜像（国内加速）
+      - HF_ENDPOINT=https://hf-mirror.com
     volumes:
       - hindsight_data:/data
     healthcheck:
