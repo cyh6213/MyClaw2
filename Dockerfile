@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # 从 builder 复制 fat jar
-COPY --from=builder /build/target/paicli-1.0-SNAPSHOT.jar app.jar
+COPY --from=builder /build/target/myclaw-1.0-SNAPSHOT.jar app.jar
 
 # 持久化数据目录
 VOLUME /root/.paicli
