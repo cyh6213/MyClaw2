@@ -1,27 +1,25 @@
-version: "3.9"
-
 services:
   # ============================================
-  # PaiCLI - Java Agent CLI 主程序
+  # MyClaw - AI 角色扮演伴侣
   # ============================================
   paicli:
     build: .
-    image: paicli:latest
-    container_name: paicli
+    image: myclaw:latest
+    container_name: myclaw
     restart: always          # 崩溃自动拉起
     ports:
       - "8080:8080"          # Runtime API
     environment:
       # --- LLM API Keys（按需启用）---
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY:-}
+      - SILICONFLOW_MODEL=${SILICONFLOW_MODEL:-deepseek-ai/DeepSeek-V4-Flash}
       - GLM_API_KEY=${GLM_API_KEY:-}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
       - STEP_API_KEY=${STEP_API_KEY:-}
       - KIMI_API_KEY=${KIMI_API_KEY:-}
-      - FREELLMAPI_API_KEY=${FREELLMAPI_API_KEY:-}
-      - XFYUN_MAAS_API_KEY=${XFYUN_MAAS_API_KEY:-}
       # --- 默认模型 ---
-      - PAICLI_DEFAULT_PROVIDER=${PAICLI_DEFAULT_PROVIDER:-glm}
-      # --- Hindsight 记忆服务 ---
+      - PAICLI_DEFAULT_PROVIDER=${PAICLI_DEFAULT_PROVIDER:-siliconflow}
+      # --- Hindsight 记忆服务（可选，不可用时自动回退本地文件）---
       - HINDSIGHT_URL=http://hindsight:8888
       - HINDSIGHT_BANK_ID=${HINDSIGHT_BANK_ID:-claw}
       # --- Runtime API 认证 ---
@@ -31,23 +29,24 @@ services:
     volumes:
       # 持久化数据（记忆、配置、快照、任务等）
       - paicli_data:/root/.paicli
-      # 可选：挂载项目目录让 PaiCLI 操作
+      # 挂载项目目录让 MyClaw 操作
       - ${WORKSPACE_DIR:-./workspace}:/workspace
     working_dir: /workspace
-    depends_on:
-      hindsight:
-        condition: service_healthy
-    # 交互模式（需要时取消注释）
+    # 交互模式（需要时取消注释，用 docker attach 进入）
     # stdin_open: true
     # tty: true
 
   # ============================================
-  # Hindsight - 向量记忆服务
+  # Hindsight - 向量记忆服务（可选）
+  # 如果没有 hindsight 镜像，MyClaw 会自动回退本地文件存储
+  # 获取镜像：ghcr.io/vectorize-io/hindsight:latest
   # ============================================
   hindsight:
-    image: ${HINDSIGHT_IMAGE:-hindsight:latest}
-    container_name: paicli-hindsight
+    image: ${HINDSIGHT_IMAGE:-ghcr.io/vectorize-io/hindsight:latest}
+    container_name: myclaw-hindsight
     restart: always
+    profiles:
+      - hindsight
     ports:
       - "8888:8888"
     environment:
