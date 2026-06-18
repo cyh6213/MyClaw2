@@ -33,8 +33,7 @@ services:
       - ${WORKSPACE_DIR:-./workspace}:/workspace
     working_dir: /workspace
     depends_on:
-      hindsight:
-        condition: service_healthy
+      - hindsight
 
   # ============================================
   # Hindsight - 向量记忆服务
