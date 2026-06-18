@@ -3,7 +3,7 @@ services:
   # MyClaw - AI 角色扮演伴侣
   # ============================================
   paicli:
-    build: .
+    build: ./repo
     image: myclaw:latest
     container_name: myclaw
     restart: always          # 崩溃自动拉起
